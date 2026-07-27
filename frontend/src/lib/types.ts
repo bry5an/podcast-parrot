@@ -1,0 +1,56 @@
+export type Direction = 'en_ja' | 'ja_en';
+
+export interface Profile {
+  id: number;
+  name: string;
+  palette_index: number;
+  direction: Direction;
+  show_furigana: boolean;
+  created_at: string;
+}
+
+export interface ProfileCreate {
+  name: string;
+  palette_index: number;
+  direction: Direction;
+  show_furigana: boolean;
+}
+
+export type PodcastSource = 'curated' | 'user_added';
+
+export interface Podcast {
+  id: number;
+  rss_url: string;
+  title: string;
+  description: string;
+  artwork_url: string | null;
+  language: string;
+  level_tag: string | null;
+  source: PodcastSource;
+  subscribed: boolean;
+}
+
+export type DownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'failed';
+export type TranscriptStatus = 'none' | 'pending' | 'auto' | 'full';
+export type EpisodeFilter = 'all' | 'unplayed' | 'downloaded';
+export type EpisodeSort = 'newest' | 'oldest';
+
+export interface Episode {
+  id: number;
+  podcast_id: number;
+  guid: string;
+  title: string;
+  pub_date: string | null;
+  duration_seconds: number | null;
+  audio_url: string;
+  local_audio_path: string | null;
+  transcript_source_url: string | null;
+  download_status: DownloadStatus;
+  transcript_status: TranscriptStatus;
+}
+
+export interface EpisodeStatus {
+  id: number;
+  download_status: DownloadStatus;
+  transcript_status: TranscriptStatus;
+}

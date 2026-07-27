@@ -1,0 +1,44 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #e8e4dc;
+  color: #211f1b;
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans JP', system-ui, sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+ruby {
+  ruby-align: center;
+}
+
+rt {
+  font-size: 0.5em;
+  font-weight: 400;
+  color: rgba(32, 30, 26, 0.5);
+  user-select: none;
+  line-height: 1;
+}
+
+button {
+  font-family: inherit;
+}
+
+a {
+  color: oklch(0.5 0.06 235);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  animation: spin 0.8s linear infinite;
+}
