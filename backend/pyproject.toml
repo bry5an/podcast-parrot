@@ -14,3 +14,24 @@ dependencies = [
     "sqlmodel>=0.0.39",
     "unidic-lite>=1.0.8",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "B008",  # FastAPI's Depends(...) default-argument pattern
+    "UP042", # str+Enum members are used for SQLModel/JSON (de)serialization
+]

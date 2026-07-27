@@ -1,0 +1,95 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Episodes } from './Episodes';
+import { ProfileProvider } from '../state/ProfileContext';
+import { api } from '../lib/api';
+import type { Episode, Profile } from '../lib/types';
+
+vi.mock('../lib/api');
+
+const profile: Profile = {
+  id: 1,
+  name: 'Kenji',
+  palette_index: 0,
+  direction: 'en_ja',
+  show_furigana: true,
+  created_at: '2026-01-01T00:00:00Z',
+};
+
+function makeEpisode(overrides: Partial<Episode>): Episode {
+  return {
+    id: 1,
+    podcast_id: 1,
+    guid: 'guid-1',
+    title: 'Episode',
+    pub_date: '2026-01-01T00:00:00Z',
+    duration_seconds: 600,
+    audio_url: 'https://example.com/a.mp3',
+    local_audio_path: null,
+    transcript_source_url: null,
+    download_status: 'idle',
+    transcript_status: 'none',
+    ...overrides,
+  };
+}
+
+function renderEpisodes() {
+  return render(
+    <MemoryRouter initialEntries={['/library/podcasts/1/episodes']}>
+      <ProfileProvider>
+        <Routes>
+          <Route path="/library/podcasts/:podcastId/episodes" element={<Episodes />} />
+        </Routes>
+      </ProfileProvider>
+    </MemoryRouter>,
+  );
+}
+
+describe('Episodes', () => {
+  beforeEach(() => {
+    localStorage.setItem('kotoba.profileId', '1');
+    vi.mocked(api.listProfiles).mockResolvedValue([profile]);
+    vi.mocked(api.listSubscriptions).mockResolvedValue([]);
+  });
+
+  it('re-fetches from the API when the filter changes', async () => {
+    const allEpisodes = [
+      makeEpisode({ id: 1, title: 'Idle episode', download_status: 'idle' }),
+      makeEpisode({ id: 2, title: 'Downloaded episode', download_status: 'downloaded' }),
+    ];
+    const downloadedOnly = [allEpisodes[1]];
+    vi.mocked(api.listEpisodes).mockImplementation((_podcastId, opts = {}) =>
+      Promise.resolve(opts.filter === 'downloaded' ? downloadedOnly : allEpisodes),
+    );
+
+    renderEpisodes();
+
+    expect(await screen.findByText('Idle episode')).toBeInTheDocument();
+    expect(screen.getByText('Downloaded episode')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Downloaded' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Idle episode')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('Downloaded episode')).toBeInTheDocument();
+    expect(api.listEpisodes).toHaveBeenLastCalledWith(1, { profileId: 1, filter: 'downloaded', sort: 'newest' });
+  });
+
+  it('toggles sort order and re-fetches with the new sort', async () => {
+    vi.mocked(api.listEpisodes).mockResolvedValue([makeEpisode({ id: 1, title: 'Episode' })]);
+    renderEpisodes();
+
+    await screen.findByText('Episode');
+    const sortButton = screen.getByRole('button', { name: /Newest first/ });
+
+    await userEvent.click(sortButton);
+
+    expect(await screen.findByRole('button', { name: /Oldest first/ })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.listEpisodes).toHaveBeenLastCalledWith(1, { profileId: 1, filter: 'all', sort: 'oldest' });
+    });
+  });
+});

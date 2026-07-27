@@ -6,6 +6,9 @@ backend/data/*.db
 backend/storage/*
 !backend/storage/.gitkeep
 *.pyc
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
 
 # Node / frontend
 frontend/node_modules/
