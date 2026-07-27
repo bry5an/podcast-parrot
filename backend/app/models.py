@@ -1,6 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
 
@@ -70,5 +71,31 @@ class Episode(SQLModel, table=True):
     audio_url: str
     local_audio_path: str | None = None
     transcript_source_url: str | None = None
+    transcript_source_type: str | None = None  # mime type from the podcast:transcript tag, e.g. "text/vtt"
+    transcript_source_language: str | None = None  # language attr from the podcast:transcript tag
     download_status: DownloadStatus = Field(default=DownloadStatus.idle)
     transcript_status: TranscriptStatus = Field(default=TranscriptStatus.none)
+
+
+class TranscriptSource(str, Enum):
+    published = "published"
+    asr = "asr"
+
+
+class Transcript(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    episode_id: int = Field(foreign_key="episode.id", unique=True, index=True)
+    language: str = ""
+    source: TranscriptSource = Field(default=TranscriptSource.published)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Sentence(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    transcript_id: int = Field(foreign_key="transcript.id", index=True)
+    index: int
+    start_time: float
+    end_time: float
+    text: str
+    # [{base, reading}] — populated as plain {base: text, reading: ""} until furigana lands (#6)
+    segments: list[dict] = Field(default_factory=list, sa_column=Column(JSON))
