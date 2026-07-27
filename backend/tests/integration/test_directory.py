@@ -1,0 +1,138 @@
+from app.models import Podcast, PodcastSource
+from app.services.rss import FeedFetchError
+
+
+def _make_podcast(session, **overrides) -> Podcast:
+    defaults = dict(
+        rss_url="https://example.com/feed.xml",
+        title="Nihongo News",
+        description="Daily Japanese news",
+        language="ja",
+        source=PodcastSource.curated,
+    )
+    defaults.update(overrides)
+    podcast = Podcast(**defaults)
+    session.add(podcast)
+    session.commit()
+    session.refresh(podcast)
+    return podcast
+
+
+def test_search_directory_lists_all(client, session):
+    _make_podcast(session, rss_url="https://example.com/a.xml", title="Nihongo News", language="ja")
+    _make_podcast(session, rss_url="https://example.com/b.xml", title="English Hour", language="en")
+
+    response = client.get("/api/directory")
+    assert response.status_code == 200
+    titles = {p["title"] for p in response.json()}
+    assert titles == {"Nihongo News", "English Hour"}
+
+
+def test_search_directory_filters_by_language_and_query(client, session):
+    _make_podcast(session, rss_url="https://example.com/a.xml", title="Nihongo News", language="ja")
+    _make_podcast(session, rss_url="https://example.com/b.xml", title="English Hour", language="en")
+
+    response = client.get("/api/directory", params={"language": "ja"})
+    assert [p["title"] for p in response.json()] == ["Nihongo News"]
+
+    response = client.get("/api/directory", params={"query": "english"})
+    assert [p["title"] for p in response.json()] == ["English Hour"]
+
+
+def test_search_directory_marks_subscribed_podcasts(client, session):
+    podcast = _make_podcast(session)
+    profile_resp = client.post("/api/profiles", json={"name": "Kenji"})
+    profile_id = profile_resp.json()["id"]
+    client.post(f"/api/profiles/{profile_id}/podcasts/{podcast.id}")
+
+    response = client.get("/api/directory", params={"profile_id": profile_id})
+    assert response.json()[0]["subscribed"] is True
+
+
+def test_add_podcast_from_rss(client, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.directory.fetch_podcast_metadata",
+        lambda url: {"title": "New Show", "description": "desc", "artwork_url": None, "language": "ja"},
+    )
+
+    response = client.post("/api/directory/rss", json={"rss_url": "https://example.com/new.xml"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["title"] == "New Show"
+    assert body["source"] == "user_added"
+
+
+def test_add_podcast_from_rss_dedupes_existing_url(client, session, monkeypatch):
+    _make_podcast(session, rss_url="https://example.com/existing.xml", title="Existing")
+
+    def fail_if_called(url):
+        raise AssertionError("fetch_podcast_metadata should not be called for an already-known URL")
+
+    monkeypatch.setattr("app.api.directory.fetch_podcast_metadata", fail_if_called)
+
+    response = client.post("/api/directory/rss", json={"rss_url": "https://example.com/existing.xml"})
+    assert response.status_code == 200
+    assert response.json()["title"] == "Existing"
+
+
+def test_add_podcast_from_rss_invalid_feed_returns_422(client, monkeypatch):
+    def raise_error(url):
+        raise FeedFetchError("could not parse")
+
+    monkeypatch.setattr("app.api.directory.fetch_podcast_metadata", raise_error)
+
+    response = client.post("/api/directory/rss", json={"rss_url": "https://example.com/broken.xml"})
+    assert response.status_code == 422
+
+
+def test_list_subscriptions(client, session):
+    podcast = _make_podcast(session)
+    profile_id = client.post("/api/profiles", json={"name": "Kenji"}).json()["id"]
+    client.post(f"/api/profiles/{profile_id}/podcasts/{podcast.id}")
+
+    response = client.get(f"/api/profiles/{profile_id}/podcasts")
+    assert response.status_code == 200
+    assert [p["id"] for p in response.json()] == [podcast.id]
+
+
+def test_list_subscriptions_missing_profile_returns_404(client):
+    response = client.get("/api/profiles/999/podcasts")
+    assert response.status_code == 404
+
+
+def test_subscribe_is_idempotent(client, session):
+    podcast = _make_podcast(session)
+    profile_id = client.post("/api/profiles", json={"name": "Kenji"}).json()["id"]
+
+    first = client.post(f"/api/profiles/{profile_id}/podcasts/{podcast.id}")
+    second = client.post(f"/api/profiles/{profile_id}/podcasts/{podcast.id}")
+    assert first.status_code == 204
+    assert second.status_code == 204
+    assert len(client.get(f"/api/profiles/{profile_id}/podcasts").json()) == 1
+
+
+def test_subscribe_missing_profile_returns_404(client, session):
+    podcast = _make_podcast(session)
+    response = client.post(f"/api/profiles/999/podcasts/{podcast.id}")
+    assert response.status_code == 404
+
+
+def test_subscribe_missing_podcast_returns_404(client):
+    profile_id = client.post("/api/profiles", json={"name": "Kenji"}).json()["id"]
+    response = client.post(f"/api/profiles/{profile_id}/podcasts/999")
+    assert response.status_code == 404
+
+
+def test_unsubscribe(client, session):
+    podcast = _make_podcast(session)
+    profile_id = client.post("/api/profiles", json={"name": "Kenji"}).json()["id"]
+    client.post(f"/api/profiles/{profile_id}/podcasts/{podcast.id}")
+
+    response = client.delete(f"/api/profiles/{profile_id}/podcasts/{podcast.id}")
+    assert response.status_code == 204
+    assert client.get(f"/api/profiles/{profile_id}/podcasts").json() == []
+
+
+def test_unsubscribe_missing_returns_404(client):
+    response = client.delete("/api/profiles/999/podcasts/999")
+    assert response.status_code == 404
