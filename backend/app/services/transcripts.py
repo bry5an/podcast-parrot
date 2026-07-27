@@ -5,6 +5,7 @@ import httpx
 from sqlmodel import Session, select
 
 from app.models import Episode, Podcast, Sentence, Transcript, TranscriptSource, TranscriptStatus
+from app.services.furigana import build_segments
 from app.services.rss import TIMED_TRANSCRIPT_FORMATS, classify_transcript_format
 from app.services.transcript_parsers import parse_json_transcript, parse_srt, parse_vtt
 from app.services.transcription import transcribe_audio
@@ -66,7 +67,7 @@ def build_transcript(session: Session, episode: Episode) -> Transcript | None:
                 start_time=cue.start_time,
                 end_time=cue.end_time,
                 text=cue.text,
-                segments=[{"base": cue.text, "reading": ""}],
+                segments=build_segments(cue.text, language),
             )
         )
 
@@ -125,7 +126,7 @@ def _transcribe_with_asr(session: Session, episode: Episode, audio_path: Path) -
                 start_time=cue.start_time,
                 end_time=cue.end_time,
                 text=cue.text,
-                segments=[{"base": cue.text, "reading": ""}],
+                segments=build_segments(cue.text, transcript.language),
             )
         )
 

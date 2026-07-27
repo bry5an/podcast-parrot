@@ -97,5 +97,6 @@ class Sentence(SQLModel, table=True):
     start_time: float
     end_time: float
     text: str
-    # [{base, reading}] — populated as plain {base: text, reading: ""} until furigana lands (#6)
+    # [{base, reading}] — per-morpheme for Japanese sentences, single collapsed
+    # segment (reading always "") for everything else. See services/furigana.py.
     segments: list[dict] = Field(default_factory=list, sa_column=Column(JSON))
