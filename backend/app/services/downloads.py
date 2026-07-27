@@ -6,6 +6,7 @@ from sqlmodel import Session
 
 from app.db import engine
 from app.models import DownloadStatus, Episode
+from app.services.transcripts import ingest_transcript
 
 STORAGE_DIR = Path(__file__).resolve().parent.parent.parent / "storage"
 STORAGE_DIR.mkdir(exist_ok=True)
@@ -47,3 +48,5 @@ def download_episode_audio(episode_id: int) -> None:
         episode.download_status = DownloadStatus.downloaded
         session.add(episode)
         session.commit()
+
+        ingest_transcript(session, episode, audio_path=target)

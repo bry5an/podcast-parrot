@@ -1,9 +1,15 @@
+import logging
+from pathlib import Path
+
 import httpx
 from sqlmodel import Session, select
 
 from app.models import Episode, Podcast, Sentence, Transcript, TranscriptSource, TranscriptStatus
 from app.services.rss import TIMED_TRANSCRIPT_FORMATS, classify_transcript_format
 from app.services.transcript_parsers import parse_json_transcript, parse_srt, parse_vtt
+from app.services.transcription import transcribe_audio
+
+logger = logging.getLogger(__name__)
 
 _PARSERS = {"srt": parse_srt, "vtt": parse_vtt, "json": parse_json_transcript}
 
@@ -65,6 +71,65 @@ def build_transcript(session: Session, episode: Episode) -> Transcript | None:
         )
 
     episode.transcript_status = TranscriptStatus.full
+    session.add(episode)
+    session.commit()
+    session.refresh(transcript)
+    return transcript
+
+
+def ingest_transcript(session: Session, episode: Episode, audio_path: Path | None = None) -> None:
+    """Try the published-transcript path first; if it's unavailable (untimed
+    source, none published, or the fetch/parse failed), fall back to ASR over
+    the given local audio file. No-op if a transcript already exists."""
+    if episode.transcript_status == TranscriptStatus.full:
+        return
+
+    original_status = episode.transcript_status
+    episode.transcript_status = TranscriptStatus.pending
+    session.add(episode)
+    session.commit()
+
+    if get_or_build_transcript(session, episode):
+        return
+
+    if audio_path is not None and _transcribe_with_asr(session, episode, audio_path):
+        return
+
+    episode.transcript_status = original_status
+    session.add(episode)
+    session.commit()
+
+
+def _transcribe_with_asr(session: Session, episode: Episode, audio_path: Path) -> Transcript | None:
+    try:
+        cues, detected_language = transcribe_audio(str(audio_path))
+    except Exception:
+        logger.exception("ASR transcription failed for episode %s", episode.id)
+        return None
+    if not cues:
+        return None
+
+    transcript = Transcript(
+        episode_id=episode.id,
+        language=detected_language or "",
+        source=TranscriptSource.asr,
+    )
+    session.add(transcript)
+    session.flush()
+
+    for index, cue in enumerate(cues):
+        session.add(
+            Sentence(
+                transcript_id=transcript.id,
+                index=index,
+                start_time=cue.start_time,
+                end_time=cue.end_time,
+                text=cue.text,
+                segments=[{"base": cue.text, "reading": ""}],
+            )
+        )
+
+    episode.transcript_status = TranscriptStatus.auto
     session.add(episode)
     session.commit()
     session.refresh(transcript)
