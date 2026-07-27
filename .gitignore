@@ -1,0 +1,15 @@
+# Python / backend
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/data/*.db
+backend/storage/*
+!backend/storage/.gitkeep
+*.pyc
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store

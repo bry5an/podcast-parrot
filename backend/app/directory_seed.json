@@ -1,0 +1,98 @@
+[
+  {
+    "rss_url": "http://nihongoconteppei.com/feed/podcast",
+    "title": "Japanese podcast for beginners (Nihongo con Teppei)",
+    "description": "The best way to learn how to speak Japanese naturally! Slow, clear beginner-friendly Japanese.",
+    "artwork_url": "http://nihongoconteppei.com/wp-content/uploads/powerpress/Japanese_podcast_for_beginners_(Nihongo_con_Teppei).png",
+    "language": "ja",
+    "level_tag": "N5-N4"
+  },
+  {
+    "rss_url": "https://teppeinorikojapanese.com/feed/podcast/",
+    "title": "Japanese with Teppei and Noriko",
+    "description": "Two hosts chatting naturally about everyday life and culture, aimed at upper-beginner and intermediate learners.",
+    "artwork_url": "https://teppeinorikojapanese.com/wp-content/uploads/powerpress/4254397C-9DF7-4B96-96EE-F5A70032DB6C.png",
+    "language": "ja",
+    "level_tag": "N4-N3"
+  },
+  {
+    "rss_url": "https://www.japanesepod101.com/wp-feed-audio.php",
+    "title": "Learn Japanese | JapanesePod101.com (Audio)",
+    "description": "Structured daily audio lessons covering vocabulary, grammar, and conversation across all levels.",
+    "artwork_url": "https://japanesepod101.com/images/itunes_logo.jpg",
+    "language": "ja",
+    "level_tag": "N5-N3"
+  },
+  {
+    "rss_url": "https://anchor.fm/s/1380f800/podcast/rss",
+    "title": "Learn Japanese with Noriko",
+    "description": "A certified Japanese teacher covers grammar points and everyday expressions for beginner-to-intermediate learners.",
+    "artwork_url": "https://d3t3ozftmdmh3i.cloudfront.net/production/podcast_uploaded/3172192/3172192-1580928765546-9ac6decd1173b.jpg",
+    "language": "ja",
+    "level_tag": "N4-N3"
+  },
+  {
+    "rss_url": "https://anchor.fm/s/81109d44/podcast/rss",
+    "title": "Nihongo Short Story by Noriko",
+    "description": "Original short stories narrated in natural-paced Japanese for intermediate learners and above.",
+    "artwork_url": "https://d3t3ozftmdmh3i.cloudfront.net/production/podcast_uploaded/21553497/21553497-1647111083269-fedb1e3f57fd8.jpg",
+    "language": "ja",
+    "level_tag": "N3-N2"
+  },
+  {
+    "rss_url": "https://rss.buzzsprout.com/1739827.rss",
+    "title": "The Miku Real Japanese Podcast",
+    "description": "Real, natural-speed conversational Japanese with a focus on culture — for intermediate-advanced learners.",
+    "artwork_url": "https://storage.buzzsprout.com/2qgx4qdbgykvjfw3tzmbxmveldhy?.jpg",
+    "language": "ja",
+    "level_tag": "N3-N2"
+  },
+  {
+    "rss_url": "https://podcasts.files.bbci.co.uk/p0bz8zmf.rss",
+    "title": "English in a Minute",
+    "description": "Short, beginner-friendly clips explaining common English words and phrases from BBC Learning English.",
+    "artwork_url": "http://ichef.bbci.co.uk/images/ic/3000x3000/p0hxy152.jpg",
+    "language": "en",
+    "level_tag": "A1-A2"
+  },
+  {
+    "rss_url": "https://learningenglish.voanews.com/podcast/?count=20&zoneId=1689",
+    "title": "VOA Learning English Podcast",
+    "description": "News and feature stories using a limited vocabulary, read one-third slower for beginner-to-intermediate learners.",
+    "artwork_url": "https://gdb.voanews.com/0684e143-ca54-4c31-bbc7-c26e19b2fb70.jpg",
+    "language": "en",
+    "level_tag": "A2-B1"
+  },
+  {
+    "rss_url": "https://podcasts.files.bbci.co.uk/p02pc9tn.rss",
+    "title": "6 Minute English",
+    "description": "Useful English vocabulary and discussion built around BBC news clips, in six-minute structured lessons.",
+    "artwork_url": "http://ichef.bbci.co.uk/images/ic/3000x3000/p0hxqkd0.jpg",
+    "language": "en",
+    "level_tag": "B1-B2"
+  },
+  {
+    "rss_url": "https://esl.culips.com/feed/podcast/",
+    "title": "Culips Everyday English Podcast",
+    "description": "Natural, everyday conversational English with a focus on idioms and casual speech.",
+    "artwork_url": "https://esl.culips.com/wp-content/uploads/2023/09/culipsart2-1-1-1.jpg",
+    "language": "en",
+    "level_tag": "B1-B2"
+  },
+  {
+    "rss_url": "https://rss.libsyn.com/shows/56803/destinations/212704.xml",
+    "title": "Espresso English Podcast",
+    "description": "Bite-sized lessons on English grammar, vocabulary, phrases, and idioms.",
+    "artwork_url": "https://static.libsyn.com/p/assets/7/b/3/c/7b3c885f8577bc6a/podcastespressoenglish051.jpg",
+    "language": "en",
+    "level_tag": "A2-B2"
+  },
+  {
+    "rss_url": "https://feeds.megaphone.fm/allearsenglish",
+    "title": "All Ears English Podcast",
+    "description": "Advanced, native-speed conversational English hosted by two professional American English teachers.",
+    "artwork_url": "https://megaphone.imgix.net/podcasts/88b85f10-a0c0-11ec-9e52-bfcf9441f742/image/All_Ears_English_New_Cover_with_Michelle_Under_500_KB.jpg",
+    "language": "en",
+    "level_tag": "B2-C1"
+  }
+]

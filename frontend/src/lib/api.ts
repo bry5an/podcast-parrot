@@ -1,0 +1,73 @@
+import type {
+  Episode,
+  EpisodeFilter,
+  EpisodeSort,
+  EpisodeStatus,
+  Podcast,
+  Profile,
+  ProfileCreate,
+} from './types';
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    headers: { 'content-type': 'application/json' },
+    ...init,
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`${res.status} ${res.statusText}: ${body}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+export const api = {
+  listProfiles: () => request<Profile[]>('/api/profiles'),
+  createProfile: (payload: ProfileCreate) =>
+    request<Profile>('/api/profiles', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateProfile: (id: number, payload: Partial<ProfileCreate>) =>
+    request<Profile>(`/api/profiles/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  deleteProfile: (id: number) =>
+    request<void>(`/api/profiles/${id}`, { method: 'DELETE' }),
+
+  searchDirectory: (opts: { query?: string; language?: string; profileId?: number }) => {
+    const params = new URLSearchParams();
+    if (opts.query) params.set('query', opts.query);
+    if (opts.language) params.set('language', opts.language);
+    if (opts.profileId != null) params.set('profile_id', String(opts.profileId));
+    return request<Podcast[]>(`/api/directory?${params.toString()}`);
+  },
+  addRssPodcast: (rssUrl: string) =>
+    request<Podcast>('/api/directory/rss', {
+      method: 'POST',
+      body: JSON.stringify({ rss_url: rssUrl }),
+    }),
+  listSubscriptions: (profileId: number) =>
+    request<Podcast[]>(`/api/profiles/${profileId}/podcasts`),
+  subscribe: (profileId: number, podcastId: number) =>
+    request<void>(`/api/profiles/${profileId}/podcasts/${podcastId}`, { method: 'POST' }),
+  unsubscribe: (profileId: number, podcastId: number) =>
+    request<void>(`/api/profiles/${profileId}/podcasts/${podcastId}`, { method: 'DELETE' }),
+
+  listEpisodes: (
+    podcastId: number,
+    opts: { profileId?: number; filter?: EpisodeFilter; sort?: EpisodeSort } = {},
+  ) => {
+    const params = new URLSearchParams();
+    if (opts.profileId != null) params.set('profile_id', String(opts.profileId));
+    if (opts.filter) params.set('filter', opts.filter);
+    if (opts.sort) params.set('sort', opts.sort);
+    return request<Episode[]>(`/api/podcasts/${podcastId}/episodes?${params.toString()}`);
+  },
+  startDownload: (episodeId: number) =>
+    request<EpisodeStatus>(`/api/episodes/${episodeId}/download`, { method: 'POST' }),
+  deleteDownload: (episodeId: number) =>
+    request<void>(`/api/episodes/${episodeId}/download`, { method: 'DELETE' }),
+  getEpisodeStatus: (episodeId: number) => request<EpisodeStatus>(`/api/episodes/${episodeId}/status`),
+};

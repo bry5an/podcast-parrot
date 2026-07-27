@@ -1,0 +1,49 @@
+import mimetypes
+from pathlib import Path
+
+import httpx
+from sqlmodel import Session
+
+from app.db import engine
+from app.models import DownloadStatus, Episode
+
+STORAGE_DIR = Path(__file__).resolve().parent.parent.parent / "storage"
+STORAGE_DIR.mkdir(exist_ok=True)
+
+
+def _extension_for(url: str, content_type: str | None) -> str:
+    suffix = Path(httpx.URL(url).path).suffix
+    if suffix:
+        return suffix
+    if content_type:
+        guessed = mimetypes.guess_extension(content_type.split(";")[0].strip())
+        if guessed:
+            return guessed
+    return ".mp3"
+
+
+def download_episode_audio(episode_id: int) -> None:
+    with Session(engine) as session:
+        episode = session.get(Episode, episode_id)
+        if not episode:
+            return
+
+        try:
+            with httpx.stream("GET", episode.audio_url, follow_redirects=True, timeout=60.0) as response:
+                response.raise_for_status()
+                extension = _extension_for(str(response.url), response.headers.get("content-type"))
+                filename = f"{episode_id}{extension}"
+                target = STORAGE_DIR / filename
+                with target.open("wb") as f:
+                    for chunk in response.iter_bytes():
+                        f.write(chunk)
+        except httpx.HTTPError:
+            episode.download_status = DownloadStatus.failed
+            session.add(episode)
+            session.commit()
+            return
+
+        episode.local_audio_path = filename
+        episode.download_status = DownloadStatus.downloaded
+        session.add(episode)
+        session.commit()
