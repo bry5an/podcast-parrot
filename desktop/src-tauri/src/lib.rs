@@ -1,3 +1,6 @@
+mod menu;
+mod now_playing;
+mod power;
 mod sidecar;
 
 use tauri::Manager;
@@ -7,6 +10,18 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::POSITION)
+                .build(),
+        )
+        .manage(power::WakeLock::new())
+        .invoke_handler(tauri::generate_handler![
+            power::begin_playback_wake_lock,
+            power::end_playback_wake_lock,
+            now_playing::update_now_playing,
+            now_playing::clear_now_playing,
+        ])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -15,6 +30,8 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            app.set_menu(menu::build(app.handle())?)?;
+            app.manage(now_playing::register_remote_commands(app.handle()));
             sidecar::launch(app.handle().clone());
             Ok(())
         })
@@ -27,9 +44,13 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building the Kotoba desktop shell")
-        .run(|app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+        .run(|app_handle, event| match event {
+            tauri::RunEvent::ExitRequested { api, .. } => {
                 sidecar::handle_exit_requested(app_handle.clone(), api.clone());
             }
+            tauri::RunEvent::Exit => {
+                app_handle.state::<power::WakeLock>().release();
+            }
+            _ => {}
         });
 }

@@ -27,3 +27,10 @@ tauri-plugin-shell = "2"
 rand = "0.8"
 libc = "0.2.189"
 tauri-plugin-dialog = "2.7.2"
+tauri-plugin-window-state = "2.4.1"
+
+[target.aarch64-apple-darwin.dependencies]
+block2 = "0.6.2"
+objc2 = "0.6.4"
+objc2-foundation = "0.3.2"
+objc2-media-player = "0.3.2"

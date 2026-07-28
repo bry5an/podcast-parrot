@@ -2,7 +2,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn main() {
-    tauri_build::build();
+    let attributes = tauri_build::Attributes::new().app_manifest(
+        tauri_build::AppManifest::new().commands(&[
+            "begin_playback_wake_lock",
+            "end_playback_wake_lock",
+            "update_now_playing",
+            "clear_now_playing",
+        ]),
+    );
+    tauri_build::try_build(attributes).expect("failed to run tauri-build");
     stage_internal_next_to_dev_binary();
 }
 
