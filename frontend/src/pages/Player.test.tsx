@@ -208,6 +208,19 @@ describe('Player', () => {
     expect(await screen.findByText('Transcript not available')).toBeInTheDocument();
   });
 
+  it('still advances the scrub bar and elapsed time when there is no transcript', async () => {
+    vi.mocked(api.getTranscript).mockRejectedValue(new Error('404 Not Found'));
+    renderPlayer();
+    await screen.findByText('Transcript not available');
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    audio.currentTime = 3;
+    fireEvent.timeUpdate(audio);
+
+    await waitFor(() => expect(screen.getByText('0:03')).toBeInTheDocument());
+    expect(screen.getByRole('slider')).toHaveValue('3');
+  });
+
   it('resumes playback from a persisted position and saves it back on pause', async () => {
     renderPlayer({ ...episode, position_seconds: 4 });
     await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
