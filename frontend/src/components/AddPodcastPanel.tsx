@@ -5,11 +5,12 @@ import type { Podcast } from '../lib/types';
 
 interface Props {
   profileId: number;
+  language: string;
   onClose: () => void;
   onSubscriptionChange: () => void;
 }
 
-export function AddPodcastPanel({ profileId, onClose, onSubscriptionChange }: Props) {
+export function AddPodcastPanel({ profileId, language, onClose, onSubscriptionChange }: Props) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Podcast[]>([]);
   const [adding, setAdding] = useState(false);
@@ -23,13 +24,13 @@ export function AddPodcastPanel({ profileId, onClose, onSubscriptionChange }: Pr
       return;
     }
     let cancelled = false;
-    api.searchDirectory({ query, profileId }).then((res) => {
+    api.searchDirectory({ query, profileId, language }).then((res) => {
       if (!cancelled) setResults(res);
     });
     return () => {
       cancelled = true;
     };
-  }, [query, isRss, profileId]);
+  }, [query, isRss, profileId, language]);
 
   const toggleFollow = async (podcast: Podcast) => {
     if (podcast.subscribed) {

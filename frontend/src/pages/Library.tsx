@@ -157,6 +157,7 @@ export function Library() {
           {addOpen && (
             <AddPodcastPanel
               profileId={currentProfile.id}
+              language={currentProfile.direction === 'en_ja' ? 'ja' : 'en'}
               onClose={() => setAddOpen(false)}
               onSubscriptionChange={refreshSubscriptions}
             />
