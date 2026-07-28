@@ -10,6 +10,8 @@ backend/.pytest_cache/
 backend/.coverage
 backend/htmlcov/
 backend/bin/
+backend/build/
+backend/dist/
 
 # Node / frontend
 frontend/node_modules/
