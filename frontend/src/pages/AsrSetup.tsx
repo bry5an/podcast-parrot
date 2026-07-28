@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { DOWNLOAD_ERROR_MESSAGES } from '../lib/downloadErrors';
 import type { WhisperModel, WhisperModelName, WhisperModelStatus } from '../lib/types';
 
 export const ASR_SETUP_SEEN_KEY = 'kotoba.asrSetupSeen';
@@ -9,14 +10,6 @@ const MODEL_BLURBS: Record<WhisperModelName, string> = {
   tiny: 'Fastest, least accurate — noticeably weak on Japanese.',
   base: 'Recommended for Japanese shadowing.',
   small: 'Most accurate, largest download.',
-};
-
-const ERROR_MESSAGES: Record<string, string> = {
-  offline: "Couldn't reach the download server. Check your connection and try again.",
-  network: 'The download was interrupted partway through. Try again.',
-  disk_space: 'Not enough free disk space for this model.',
-  checksum: 'The downloaded file was corrupted. Try again.',
-  unknown: 'Something went wrong. Try again.',
 };
 
 function formatSize(bytes: number): string {
@@ -135,7 +128,7 @@ export function AsrSetup() {
                       )}
                       {isFailedThis && (
                         <div style={styles.errorBox} data-testid="asr-setup-error">
-                          {ERROR_MESSAGES[status?.error ?? 'unknown']}
+                          {DOWNLOAD_ERROR_MESSAGES[status?.error ?? 'unknown']}
                           <button onClick={() => download(m.name)} style={styles.retryBtn}>
                             Retry
                           </button>

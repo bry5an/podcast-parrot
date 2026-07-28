@@ -3,6 +3,8 @@ import type {
   EpisodeFilter,
   EpisodeSort,
   EpisodeStatus,
+  Pack,
+  PackStatus,
   Podcast,
   Profile,
   ProfileCreate,
@@ -96,4 +98,9 @@ export const api = {
   downloadModel: (name: string) => request<WhisperModel>(`/api/models/${name}`, { method: 'POST' }),
   getModelStatus: (name: string) => request<WhisperModelStatus>(`/api/models/${name}/status`),
   deleteModel: (name: string) => request<void>(`/api/models/${name}`, { method: 'DELETE' }),
+
+  listPacks: () => request<Pack[]>('/api/packs'),
+  installPack: (name: string) => request<Pack>(`/api/packs/${name}`, { method: 'POST' }),
+  getPackStatus: (name: string) => request<PackStatus>(`/api/packs/${name}/status`),
+  deletePack: (name: string) => request<void>(`/api/packs/${name}`, { method: 'DELETE' }),
 };

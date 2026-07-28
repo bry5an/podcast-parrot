@@ -1,11 +1,30 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProfilePicker } from './ProfilePicker';
 import { ProfileProvider } from '../state/ProfileContext';
 import { api } from '../lib/api';
-import type { Profile } from '../lib/types';
+import type { PackStatus, Profile } from '../lib/types';
+
+// The prompt polls via window.setInterval every 800ms — capture the callback
+// and invoke it manually instead of juggling fake timers (see AsrSetup.test.tsx
+// for the same pattern and rationale).
+function captureIntervalCallback() {
+  let callback: (() => void | Promise<void>) | null = null;
+  vi.spyOn(window, 'setInterval').mockImplementation(((fn: () => void) => {
+    callback = fn;
+    return 1 as unknown as number;
+  }) as typeof window.setInterval);
+  vi.spyOn(window, 'clearInterval').mockImplementation(() => {});
+  return {
+    tick: async () => {
+      await act(async () => {
+        await callback?.();
+      });
+    },
+  };
+}
 
 vi.mock('../lib/api');
 
@@ -37,6 +56,7 @@ describe('ProfilePicker', () => {
       { name: 'base', size_bytes: 1, installed: false, active: true },
       { name: 'small', size_bytes: 1, installed: false, active: false },
     ]);
+    vi.mocked(api.listPacks).mockResolvedValue([{ name: 'japanese', download_size_bytes: 1, installed: true }]);
     localStorage.setItem('kotoba.asrSetupSeen', '1');
   });
 
@@ -93,5 +113,88 @@ describe('ProfilePicker', () => {
       direction: 'en_ja',
       show_furigana: true,
     });
+  });
+
+  it('prompts to install the Japanese pack after creating an en_ja profile when it is missing', async () => {
+    const created: Profile = {
+      id: 2,
+      name: 'Aoi',
+      palette_index: 2,
+      direction: 'en_ja',
+      show_furigana: true,
+      created_at: '2026-01-02T00:00:00Z',
+    };
+    vi.mocked(api.createProfile).mockResolvedValue(created);
+    vi.mocked(api.listPacks).mockResolvedValue([{ name: 'japanese', download_size_bytes: 47_000_000, installed: false }]);
+    renderPicker();
+
+    await userEvent.click(await screen.findByText('Add learner'));
+    await userEvent.type(screen.getByPlaceholderText('e.g. Kenji'), 'Aoi');
+    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+
+    expect(await screen.findByTestId('japanese-pack-prompt')).toBeInTheDocument();
+    expect(screen.getByText(/47 MB/)).toBeInTheDocument();
+  });
+
+  it('never prompts for a ja_en profile even when the pack is missing', async () => {
+    const created: Profile = {
+      id: 2,
+      name: 'Kenji2',
+      palette_index: 2,
+      direction: 'ja_en',
+      show_furigana: true,
+      created_at: '2026-01-02T00:00:00Z',
+    };
+    vi.mocked(api.createProfile).mockResolvedValue(created);
+    vi.mocked(api.listPacks).mockResolvedValue([{ name: 'japanese', download_size_bytes: 1, installed: false }]);
+    vi.mocked(api.listPacks).mockClear();
+    renderPicker();
+
+    await userEvent.click(await screen.findByText('Add learner'));
+    await userEvent.click(screen.getByText('英語 · native Japanese').closest('button')!);
+    await userEvent.type(screen.getByPlaceholderText('e.g. Kenji'), 'Kenji2');
+    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+
+    await waitFor(() => expect(api.createProfile).toHaveBeenCalled());
+    expect(screen.queryByTestId('japanese-pack-prompt')).not.toBeInTheDocument();
+    expect(api.listPacks).not.toHaveBeenCalled();
+  });
+
+  it('installs the pack from the prompt and shows progress to completion', async () => {
+    const created: Profile = {
+      id: 2,
+      name: 'Aoi',
+      palette_index: 2,
+      direction: 'en_ja',
+      show_furigana: true,
+      created_at: '2026-01-02T00:00:00Z',
+    };
+    vi.mocked(api.createProfile).mockResolvedValue(created);
+    vi.mocked(api.listPacks).mockResolvedValue([{ name: 'japanese', download_size_bytes: 47_000_000, installed: false }]);
+    vi.mocked(api.installPack).mockResolvedValue({ name: 'japanese', download_size_bytes: 47_000_000, installed: false });
+    const statuses: PackStatus[] = [
+      { state: 'downloading', bytes_done: 0, bytes_total: 47_000_000, error: null },
+      { state: 'installed', bytes_done: 47_000_000, bytes_total: 47_000_000, error: null },
+    ];
+    let call = 0;
+    vi.mocked(api.getPackStatus).mockImplementation(() =>
+      Promise.resolve(statuses[Math.min(call++, statuses.length - 1)]),
+    );
+    const interval = captureIntervalCallback();
+
+    renderPicker();
+    await userEvent.click(await screen.findByText('Add learner'));
+    await userEvent.type(screen.getByPlaceholderText('e.g. Kenji'), 'Aoi');
+    await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+
+    await screen.findByTestId('japanese-pack-prompt');
+    await userEvent.click(screen.getByRole('button', { name: 'Install' }));
+    expect(api.installPack).toHaveBeenCalledWith('japanese');
+
+    await interval.tick();
+    expect(screen.getByTestId('pack-prompt-progress')).toBeInTheDocument();
+
+    await interval.tick();
+    expect(await screen.findByText('Reading pack installed')).toBeInTheDocument();
   });
 });
