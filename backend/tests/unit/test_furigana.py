@@ -1,4 +1,5 @@
 import re
+import shlex
 
 import pytest
 
@@ -66,11 +67,11 @@ def test_tagger_lazily_picks_up_pack_once_installed(monkeypatch, tmp_path):
     monkeypatch.setattr("app.services.furigana.fugashi.Tagger", lambda arg: (calls.append(arg), _FakeTagger())[1])
 
     segments = build_segments("東京", "ja")
-    assert calls == [f"-d {fake_dir} -r {fake_dir / 'dicrc'}"]
+    assert calls == [f"-d {shlex.quote(str(fake_dir))} -r {shlex.quote(str(fake_dir / 'dicrc'))}"]
     assert segments == [{"base": "東京", "reading": "とうきょう"}]
 
     build_segments("東京", "ja")  # cached: must not reconstruct the tagger
-    assert calls == [f"-d {fake_dir} -r {fake_dir / 'dicrc'}"]
+    assert calls == [f"-d {shlex.quote(str(fake_dir))} -r {shlex.quote(str(fake_dir / 'dicrc'))}"]
 
 
 @pytest.mark.skipif(
