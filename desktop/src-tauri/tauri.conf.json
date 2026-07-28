@@ -13,7 +13,9 @@
         "title": "Kotoba",
         "width": 1120,
         "height": 712,
-        "resizable": false,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
         "fullscreen": false
       }
     ],
