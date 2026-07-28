@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session, SQLModel, select
 
 from app.db import get_session
-from app.models import DownloadStatus, Episode, Podcast, Sentence, TranscriptSource, TranscriptStatus
+from app.models import DownloadStatus, Episode, PlaybackState, Podcast, Sentence, TranscriptSource, TranscriptStatus
 from app.services.downloads import STORAGE_DIR, download_episode_audio
 from app.services.episodes import sync_episodes
 from app.services.transcripts import get_or_build_transcript
@@ -28,9 +28,13 @@ class EpisodeRead(SQLModel):
     transcript_source_language: str | None
     download_status: DownloadStatus
     transcript_status: TranscriptStatus
+    # Only populated when a profile_id is passed to list_episodes; None means
+    # never started (or no profile was given).
+    position_seconds: float | None = None
 
 
 class SentenceRead(SQLModel):
+    id: int
     index: int
     start_time: float
     end_time: float
@@ -79,12 +83,31 @@ def list_episodes(
     statement = select(Episode).where(Episode.podcast_id == podcast_id)
     if filter == "downloaded":
         statement = statement.where(Episode.download_status == DownloadStatus.downloaded)
-    # "unplayed": no play-progress tracking yet (see milestone 8), so every
-    # episode currently qualifies — same result set as "all".
 
     episodes = session.exec(statement).all()
+
+    playback_by_episode: dict[int, PlaybackState] = {}
+    if profile_id is not None and episodes:
+        rows = session.exec(
+            select(PlaybackState).where(
+                PlaybackState.profile_id == profile_id,
+                PlaybackState.episode_id.in_([e.id for e in episodes]),
+            )
+        ).all()
+        playback_by_episode = {p.episode_id: p for p in rows}
+
+    if filter == "unplayed":
+        episodes = [e for e in episodes if e.id not in playback_by_episode]
+
     episodes.sort(key=lambda e: e.pub_date or datetime.min, reverse=(sort != "oldest"))
-    return episodes
+
+    return [
+        EpisodeRead(
+            **e.model_dump(),
+            position_seconds=(playback_by_episode[e.id].position_seconds if e.id in playback_by_episode else None),
+        )
+        for e in episodes
+    ]
 
 
 @router.post("/episodes/{episode_id}/download", response_model=EpisodeStatusRead, status_code=202)
@@ -148,6 +171,7 @@ def get_transcript(episode_id: int, session: Session = Depends(get_session)):
         "created_at": transcript.created_at,
         "sentences": [
             {
+                "id": s.id,
                 "index": s.index,
                 "start_time": s.start_time,
                 "end_time": s.end_time,

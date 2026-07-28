@@ -42,6 +42,7 @@ const episode: Episode = {
   transcript_source_url: null,
   download_status: 'downloaded',
   transcript_status: 'full',
+  position_seconds: null,
 };
 
 const transcript: Transcript = {
@@ -51,19 +52,19 @@ const transcript: Transcript = {
   source: 'published',
   created_at: '2026-01-01T00:00:00Z',
   sentences: [
-    { index: 0, start_time: 0, end_time: 2, text: '一つ目', segments: [{ base: '一つ目', reading: 'ひとつめ' }] },
-    { index: 1, start_time: 2, end_time: 5, text: '二つ目', segments: [{ base: '二つ目', reading: 'ふたつめ' }] },
-    { index: 2, start_time: 5, end_time: 8, text: '三つ目', segments: [{ base: '三つ目', reading: 'みっつめ' }] },
+    { id: 100, index: 0, start_time: 0, end_time: 2, text: '一つ目', segments: [{ base: '一つ目', reading: 'ひとつめ' }] },
+    { id: 101, index: 1, start_time: 2, end_time: 5, text: '二つ目', segments: [{ base: '二つ目', reading: 'ふたつめ' }] },
+    { id: 102, index: 2, start_time: 5, end_time: 8, text: '三つ目', segments: [{ base: '三つ目', reading: 'みっつめ' }] },
   ],
 };
 
-function renderPlayer() {
+function renderPlayer(episodeOverride: Episode = episode) {
   return render(
     <MemoryRouter
       initialEntries={[
         {
           pathname: '/library/podcasts/1/episodes/42/player',
-          state: { podcast, episode },
+          state: { podcast, episode: episodeOverride },
         },
       ]}
     >
@@ -82,6 +83,9 @@ describe('Player', () => {
     vi.mocked(api.listProfiles).mockResolvedValue([profile]);
     vi.mocked(api.getTranscript).mockResolvedValue(transcript);
     vi.mocked(api.audioUrl).mockImplementation((id) => `/api/episodes/${id}/audio`);
+    vi.mocked(api.getShadowSummary).mockResolvedValue({ doneToday: 0, total: 3 });
+    vi.mocked(api.logShadowEvent).mockResolvedValue(undefined);
+    vi.mocked(api.updatePosition).mockResolvedValue(undefined);
   });
 
   it('renders the sidebar badges and the sentence list with furigana on by default', async () => {
@@ -158,9 +162,13 @@ describe('Player', () => {
     expect(screen.getByTestId('sentence-1')).toHaveAttribute('data-active', 'false');
   });
 
-  it('counts a sentence toward "shadowed today" once its end boundary is crossed', async () => {
+  it('logs a ShadowEvent and refreshes the persisted count once a sentence\'s end boundary is crossed', async () => {
+    vi.mocked(api.getShadowSummary)
+      .mockResolvedValueOnce({ doneToday: 0, total: 3 })
+      .mockResolvedValueOnce({ doneToday: 1, total: 3 });
     renderPlayer();
     await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('shadowed-count')).toHaveTextContent('0/3'));
 
     const audio = screen.getByTestId('audio') as HTMLAudioElement;
     audio.currentTime = 0.5;
@@ -170,6 +178,7 @@ describe('Player', () => {
     audio.currentTime = 2.5;
     fireEvent.timeUpdate(audio);
 
+    expect(api.logShadowEvent).toHaveBeenCalledWith(1, 42, 100);
     await waitFor(() => expect(screen.getByTestId('shadowed-count')).toHaveTextContent('1/3'));
   });
 
@@ -197,5 +206,19 @@ describe('Player', () => {
     renderPlayer();
 
     expect(await screen.findByText('Transcript not available')).toBeInTheDocument();
+  });
+
+  it('resumes playback from a persisted position and saves it back on pause', async () => {
+    renderPlayer({ ...episode, position_seconds: 4 });
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    Object.defineProperty(audio, 'duration', { value: 8, configurable: true });
+    fireEvent.loadedMetadata(audio);
+    expect(audio.currentTime).toBe(4);
+
+    audio.currentTime = 6;
+    fireEvent.pause(audio);
+    expect(api.updatePosition).toHaveBeenCalledWith(1, 42, 6);
   });
 });

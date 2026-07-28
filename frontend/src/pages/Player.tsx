@@ -53,13 +53,15 @@ export function Player() {
   const [loopOne, setLoopOne] = useState(false);
   const [speedIdx, setSpeedIdx] = useState(1);
   const [showFurigana, setShowFurigana] = useState(true);
-  const [shadowed, setShadowed] = useState<Set<number>>(new Set());
+  const [, setShadowed] = useState<Set<number>>(new Set());
+  const [doneToday, setDoneToday] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const activeIndexRef = useRef(-1);
   const loopOneRef = useRef(false);
   const furiganaInitRef = useRef(false);
+  const resumedRef = useRef(false);
 
   const sentences = transcript?.sentences ?? [];
   const sentencesRef = useRef<Sentence[]>(sentences);
@@ -111,8 +113,47 @@ export function Player() {
     if (audioRef.current) audioRef.current.playbackRate = SPEEDS[speedIdx];
   }, [speedIdx]);
 
-  const markShadowed = useCallback((idx: number) => {
-    setShadowed((prev) => (prev.has(idx) ? prev : new Set(prev).add(idx)));
+  const refreshShadowSummary = useCallback(() => {
+    if (!currentProfile) return;
+    api.getShadowSummary(currentProfile.id, eId).then((s) => setDoneToday(s.doneToday));
+  }, [currentProfile, eId]);
+
+  useEffect(() => {
+    refreshShadowSummary();
+  }, [refreshShadowSummary]);
+
+  // Logs to the backend the first time a sentence's loop wraps (or it
+  // completes one natural playthrough); the displayed count then comes back
+  // from shadow-summary, which is the source of truth, not this local set.
+  const markShadowed = useCallback(
+    (idx: number) => {
+      setShadowed((prev) => {
+        if (prev.has(idx)) return prev;
+        const sentence = sentencesRef.current[idx];
+        if (currentProfile && sentence) {
+          api.logShadowEvent(currentProfile.id, eId, sentence.id).then(refreshShadowSummary);
+        }
+        return new Set(prev).add(idx);
+      });
+    },
+    [currentProfile, eId, refreshShadowSummary],
+  );
+
+  const savePosition = useCallback(() => {
+    if (currentProfile && episode && audioRef.current) {
+      api.updatePosition(currentProfile.id, episode.id, audioRef.current.currentTime);
+    }
+  }, [currentProfile, episode]);
+  const savePositionRef = useRef(savePosition);
+  savePositionRef.current = savePosition;
+
+  useEffect(() => {
+    const flush = () => savePositionRef.current();
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      flush();
+    };
   }, []);
 
   const handleTimeUpdate = useCallback(() => {
@@ -206,7 +247,7 @@ export function Player() {
               <div style={sidebarRowStyle}>
                 <span style={sidebarLabelStyle}>Shadowed today</span>
                 <span style={sidebarValueStyle} data-testid="shadowed-count">
-                  {shadowed.size}/{sentences.length}
+                  {doneToday}/{sentences.length}
                 </span>
               </div>
 
@@ -294,10 +335,19 @@ export function Player() {
                 data-testid="audio"
                 src={episode ? api.audioUrl(episode.id) : undefined}
                 onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                onLoadedMetadata={(e) => {
+                  setDuration(e.currentTarget.duration);
+                  if (!resumedRef.current && episode?.position_seconds) {
+                    e.currentTarget.currentTime = episode.position_seconds;
+                  }
+                  resumedRef.current = true;
+                }}
                 onDurationChange={(e) => setDuration(e.currentTarget.duration)}
                 onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
+                onPause={() => {
+                  setPlaying(false);
+                  savePosition();
+                }}
                 style={{ display: 'none' }}
               />
             </div>

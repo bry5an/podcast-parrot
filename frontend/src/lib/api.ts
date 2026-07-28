@@ -6,6 +6,8 @@ import type {
   Podcast,
   Profile,
   ProfileCreate,
+  ShadowSummary,
+  Streak,
   Transcript,
 } from './types';
 
@@ -73,4 +75,18 @@ export const api = {
   getEpisodeStatus: (episodeId: number) => request<EpisodeStatus>(`/api/episodes/${episodeId}/status`),
   getTranscript: (episodeId: number) => request<Transcript>(`/api/episodes/${episodeId}/transcript`),
   audioUrl: (episodeId: number) => `/api/episodes/${episodeId}/audio`,
+
+  updatePosition: (profileId: number, episodeId: number, positionSeconds: number) =>
+    request<void>(`/api/profiles/${profileId}/episodes/${episodeId}/position`, {
+      method: 'POST',
+      body: JSON.stringify({ position_seconds: positionSeconds }),
+    }),
+  logShadowEvent: (profileId: number, episodeId: number, sentenceId: number) =>
+    request<void>(`/api/profiles/${profileId}/episodes/${episodeId}/shadow`, {
+      method: 'POST',
+      body: JSON.stringify({ sentence_id: sentenceId }),
+    }),
+  getShadowSummary: (profileId: number, episodeId: number) =>
+    request<ShadowSummary>(`/api/profiles/${profileId}/episodes/${episodeId}/shadow-summary`),
+  getStreak: (profileId: number) => request<Streak>(`/api/profiles/${profileId}/streak`),
 };

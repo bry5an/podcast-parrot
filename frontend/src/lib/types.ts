@@ -47,6 +47,8 @@ export interface Episode {
   transcript_source_url: string | null;
   download_status: DownloadStatus;
   transcript_status: TranscriptStatus;
+  // Only populated when the list was fetched with a profileId; null means never started.
+  position_seconds: number | null;
 }
 
 export interface EpisodeStatus {
@@ -63,6 +65,7 @@ export interface Segment {
 }
 
 export interface Sentence {
+  id: number;
   index: number;
   start_time: number;
   end_time: number;
@@ -77,4 +80,13 @@ export interface Transcript {
   source: TranscriptSource;
   created_at: string;
   sentences: Sentence[];
+}
+
+export interface ShadowSummary {
+  doneToday: number;
+  total: number;
+}
+
+export interface Streak {
+  streak: number;
 }
