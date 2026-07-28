@@ -9,6 +9,7 @@ backend/storage/*
 backend/.pytest_cache/
 backend/.coverage
 backend/htmlcov/
+backend/bin/
 
 # Node / frontend
 frontend/node_modules/
