@@ -12,7 +12,6 @@ fn main() {
     );
     tauri_build::try_build(attributes).expect("failed to run tauri-build");
     stage_internal_next_to_dev_binary();
-    stage_whisper_libs_next_to_dev_binary();
 }
 
 /// `tauri_build::build()` copies the `kotoba-backend` externalBin into
@@ -34,25 +33,6 @@ fn stage_internal_next_to_dev_binary() {
     let internal_dest = target_dir.join("_internal");
     let _ = fs::remove_dir_all(&internal_dest);
     copy_dir_recursive(&internal_src, &internal_dest);
-}
-
-/// Same story as `_internal` above, but for whisper-cli's self-contained
-/// dylibs + ggml backend plugins (#48): `prepare_sidecars.sh` stages them at
-/// `binaries/libs/`, `externalBin` only copies the `whisper-cli` file itself
-/// into `target/<profile>/`, and whisper-cli's rewritten load commands
-/// (`@executable_path/libs/...`) expect `libs/` sitting right next to it.
-fn stage_whisper_libs_next_to_dev_binary() {
-    let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    let libs_src = manifest_dir.join("binaries/libs");
-    if !libs_src.is_dir() {
-        println!("cargo:warning=desktop/src-tauri/binaries/libs not found — run desktop/scripts/prepare_sidecars.sh before `cargo tauri dev`");
-        return;
-    }
-
-    let target_dir = dev_target_dir();
-    let libs_dest = target_dir.join("libs");
-    let _ = fs::remove_dir_all(&libs_dest);
-    copy_dir_recursive(&libs_src, &libs_dest);
 }
 
 /// OUT_DIR is target/<profile>/build/<pkg>-<hash>/out; target/<profile> is

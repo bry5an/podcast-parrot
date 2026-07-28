@@ -37,8 +37,7 @@
     "macOS": {
       "minimumSystemVersion": "13.0",
       "files": {
-        "Frameworks": "../../backend/dist/kotoba-backend/_internal",
-        "MacOS/libs": "../../desktop/src-tauri/binaries/libs"
+        "Frameworks": "../../backend/dist/kotoba-backend/_internal"
       }
     }
   }

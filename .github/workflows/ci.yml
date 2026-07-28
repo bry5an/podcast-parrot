@@ -123,12 +123,22 @@ jobs:
           restore-keys: |
             macos-cargo-
 
-      # Vendored into the bundle by prepare_sidecars.sh below (README's "ASR
-      # (whisper.cpp)" section) — not built from source, just needs to exist
-      # at the standard Homebrew prefix. dylibbundler is that same script's
-      # tool for rpath-rewriting whisper-cli's dylibs into the bundle (#48).
-      - name: Install whisper-cpp and dylibbundler
-        run: brew install whisper-cpp dylibbundler
+      # whisper-cli is built from source, statically, by prepare_sidecars.sh
+      # below (#62) — cmake is the only extra tool needed; ggml-org/whisper.cpp
+      # is fetched at a pinned tag by that script, not installed via Homebrew.
+      - name: Install cmake
+        run: brew install cmake
+
+      # Cache keyed on prepare_sidecars.sh (which pins the whisper.cpp ref and
+      # cmake flags) so a from-scratch clone/configure/build only happens when
+      # that pin changes, not on every run.
+      - name: Cache whisper.cpp source + build
+        uses: actions/cache@v6.1.0
+        with:
+          path: .cache/whisper-cpp
+          key: macos-whispercpp-${{ hashFiles('desktop/scripts/prepare_sidecars.sh') }}
+          restore-keys: |
+            macos-whispercpp-
 
       - name: Install backend dependencies
         working-directory: backend
@@ -138,7 +148,7 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build sidecars (PyInstaller backend + vendored whisper-cli)
+      - name: Build sidecars (PyInstaller backend + whisper-cli from source)
         run: ./desktop/scripts/prepare_sidecars.sh
 
       # Not `npx tauri` (the README's local-dev shorthand) — that only
