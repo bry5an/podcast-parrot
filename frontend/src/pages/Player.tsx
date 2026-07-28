@@ -63,6 +63,7 @@ export function Player() {
   const loopOneRef = useRef(false);
   const furiganaInitRef = useRef(false);
   const resumedRef = useRef(false);
+  const autoplayRef = useRef((location.state as { autoplay?: boolean } | null)?.autoplay ?? false);
 
   const sentences = transcript?.sentences ?? [];
   const sentencesRef = useRef<Sentence[]>(sentences);
@@ -393,6 +394,10 @@ export function Player() {
                     e.currentTarget.currentTime = episode.position_seconds;
                   }
                   resumedRef.current = true;
+                  if (autoplayRef.current) {
+                    autoplayRef.current = false;
+                    e.currentTarget.play();
+                  }
                   pushNowPlaying(0);
                 }}
                 onDurationChange={(e) => setDuration(e.currentTarget.duration)}

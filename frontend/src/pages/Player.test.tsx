@@ -58,13 +58,13 @@ const transcript: Transcript = {
   ],
 };
 
-function renderPlayer(episodeOverride: Episode = episode) {
+function renderPlayer(episodeOverride: Episode = episode, autoplay = false) {
   return render(
     <MemoryRouter
       initialEntries={[
         {
           pathname: '/library/podcasts/1/episodes/42/player',
-          state: { podcast, episode: episodeOverride },
+          state: { podcast, episode: episodeOverride, autoplay },
         },
       ]}
     >
@@ -220,5 +220,29 @@ describe('Player', () => {
     audio.currentTime = 6;
     fireEvent.pause(audio);
     expect(api.updatePosition).toHaveBeenCalledWith(1, 42, 6);
+  });
+
+  it('starts playback automatically when navigated to with autoplay state', async () => {
+    renderPlayer(episode, true);
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    const playSpy = vi.spyOn(audio, 'play').mockResolvedValue();
+
+    fireEvent.loadedMetadata(audio);
+
+    expect(playSpy).toHaveBeenCalled();
+  });
+
+  it('does not autoplay when navigated to without the autoplay flag', async () => {
+    renderPlayer();
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    const playSpy = vi.spyOn(audio, 'play').mockResolvedValue();
+
+    fireEvent.loadedMetadata(audio);
+
+    expect(playSpy).not.toHaveBeenCalled();
   });
 });
