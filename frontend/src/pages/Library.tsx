@@ -36,9 +36,7 @@ export function Library() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', padding: 32 }}>
-      <div style={{ width: '100%', maxWidth: 1120, background: '#fff', border: '1px solid rgba(32,30,26,.1)', borderRadius: 16, boxShadow: '0 12px 48px rgba(32,30,26,.14)', overflow: 'hidden' }}>
-        <div style={{ position: 'relative', display: 'flex', height: 712, background: '#fbfaf7', color: '#211f1b' }}>
+    <div style={{ position: 'relative', display: 'flex', height: '100vh', background: '#fbfaf7', color: '#211f1b' }}>
           {/* nav rail */}
           <div style={{ width: 212, flex: 'none', borderRight: '1px solid rgba(32,30,26,.08)', display: 'flex', flexDirection: 'column', padding: '20px 14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 8px 18px' }}>
@@ -163,8 +161,6 @@ export function Library() {
               onSubscriptionChange={refreshSubscriptions}
             />
           )}
-        </div>
-      </div>
     </div>
   );
 }

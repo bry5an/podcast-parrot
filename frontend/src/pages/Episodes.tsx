@@ -178,9 +178,7 @@ export function Episodes() {
   if (!currentProfile) return null;
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', padding: 32 }}>
-      <div style={{ width: '100%', maxWidth: 1120, background: '#fff', border: '1px solid rgba(32,30,26,.1)', borderRadius: 16, boxShadow: '0 12px 48px rgba(32,30,26,.14)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 712, background: '#fbfaf7', color: '#211f1b' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fbfaf7', color: '#211f1b' }}>
           <div style={{ padding: '22px 30px 0', flex: 'none' }}>
             <button onClick={() => navigate('/library')} style={backBtnStyle}>
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}>
@@ -306,8 +304,6 @@ export function Episodes() {
               </div>
             )}
           </div>
-        </div>
-      </div>
     </div>
   );
 }
