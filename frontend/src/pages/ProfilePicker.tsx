@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { JapanesePackPrompt } from '../components/JapanesePackPrompt';
 import { api } from '../lib/api';
 import { DIRECTION_META, PALETTE } from '../lib/palette';
 import { useProfiles } from '../state/ProfileContext';
@@ -18,6 +19,7 @@ export function ProfilePicker() {
   const [showFurigana, setShowFurigana] = useState(true);
   const [saving, setSaving] = useState(false);
   const [streaks, setStreaks] = useState<Record<number, number>>({});
+  const [packPromptProfileId, setPackPromptProfileId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!profiles.length) return;
@@ -58,10 +60,25 @@ export function ProfilePicker() {
       });
       await refreshProfiles();
       setCreating(false);
+
+      if (profile.direction === 'en_ja') {
+        const packs = await api.listPacks();
+        const japaneseInstalled = packs.find((p) => p.name === 'japanese')?.installed ?? false;
+        if (!japaneseInstalled) {
+          setPackPromptProfileId(profile.id);
+          return;
+        }
+      }
       pick(profile.id);
     } finally {
       setSaving(false);
     }
+  };
+
+  const finishPackPrompt = () => {
+    const profileId = packPromptProfileId;
+    setPackPromptProfileId(null);
+    if (profileId != null) pick(profileId);
   };
 
   return (
@@ -253,6 +270,8 @@ export function ProfilePicker() {
           </div>
         </div>
       )}
+
+      {packPromptProfileId != null && <JapanesePackPrompt onDone={finishPackPrompt} />}
     </div>
   );
 }

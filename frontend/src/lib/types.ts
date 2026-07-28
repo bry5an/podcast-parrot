@@ -91,6 +91,8 @@ export interface Streak {
   streak: number;
 }
 
+export type DownloadError = 'offline' | 'network' | 'disk_space' | 'checksum' | 'unknown' | null;
+
 export type WhisperModelName = 'tiny' | 'base' | 'small';
 
 export interface WhisperModel {
@@ -101,11 +103,27 @@ export interface WhisperModel {
 }
 
 export type WhisperModelState = 'not_installed' | 'downloading' | 'verifying' | 'installed' | 'failed';
-export type WhisperModelError = 'offline' | 'network' | 'disk_space' | 'checksum' | 'unknown' | null;
 
 export interface WhisperModelStatus {
   state: WhisperModelState;
   bytes_done: number;
   bytes_total: number;
-  error: WhisperModelError;
+  error: DownloadError;
+}
+
+export type PackName = 'japanese';
+
+export interface Pack {
+  name: PackName;
+  download_size_bytes: number;
+  installed: boolean;
+}
+
+export type PackState = 'not_installed' | 'downloading' | 'verifying' | 'extracting' | 'installed' | 'failed';
+
+export interface PackStatus {
+  state: PackState;
+  bytes_done: number;
+  bytes_total: number;
+  error: DownloadError;
 }
