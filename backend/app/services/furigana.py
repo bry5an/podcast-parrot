@@ -1,4 +1,5 @@
 import re
+import shlex
 
 import fugashi
 
@@ -19,7 +20,9 @@ def _get_tagger() -> fugashi.Tagger | None:
     # -r must be passed explicitly: unlike the old bundled-dictionary setup,
     # MeCab won't infer dicdir/dicrc from -d alone and instead tries (and
     # fails) to load a system-wide mecabrc.
-    _tagger = fugashi.Tagger(f"-d {_UNIDIC_DIR} -r {_UNIDIC_DIR / 'dicrc'}")
+    _tagger = fugashi.Tagger(
+        f"-d {shlex.quote(str(_UNIDIC_DIR))} -r {shlex.quote(str(_UNIDIC_DIR / 'dicrc'))}"
+    )
     return _tagger
 
 

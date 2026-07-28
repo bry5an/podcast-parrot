@@ -2,7 +2,7 @@ from pathlib import Path
 
 from sqlmodel import select
 
-from app.models import Episode, Podcast, Transcript, TranscriptSource, TranscriptStatus
+from app.models import Episode, Podcast, Sentence, Transcript, TranscriptSource, TranscriptStatus
 from app.services.transcript_parsers import Cue
 from app.services.transcription import WhisperModelNotFoundError
 from app.services.transcripts import ingest_transcript
@@ -72,6 +72,27 @@ def test_ingest_transcript_reverts_to_original_status_on_generic_asr_failure(ses
 
     session.refresh(episode)
     assert episode.transcript_status == TranscriptStatus.none
+
+
+def test_ingest_transcript_reverts_to_original_status_on_furigana_failure(session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast, transcript_status=TranscriptStatus.none)
+
+    def fake_transcribe_audio(*args, **kwargs):
+        return [Cue(0.0, 1.0, "こんにちは。")], "ja"
+
+    def fake_build_segments(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("app.services.transcripts.transcribe_audio", fake_transcribe_audio)
+    monkeypatch.setattr("app.services.transcripts.build_segments", fake_build_segments)
+
+    ingest_transcript(session, episode, audio_path=Path("/fake/audio.mp3"))
+
+    session.refresh(episode)
+    assert episode.transcript_status == TranscriptStatus.none
+    assert session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first() is None
+    assert session.exec(select(Sentence)).first() is None
 
 
 def test_ingest_transcript_succeeds_via_asr(session, monkeypatch):
