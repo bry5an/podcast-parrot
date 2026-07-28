@@ -29,21 +29,26 @@ def download_episode_audio(episode_id: int) -> None:
         if not episode:
             return
 
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+        part_path = STORAGE_DIR / f"{episode_id}.part"
+
         try:
             with httpx.stream("GET", episode.audio_url, follow_redirects=True, timeout=60.0) as response:
                 response.raise_for_status()
                 extension = _extension_for(str(response.url), response.headers.get("content-type"))
-                filename = f"{episode_id}{extension}"
-                target = STORAGE_DIR / filename
-                STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-                with target.open("wb") as f:
+                with part_path.open("wb") as f:
                     for chunk in response.iter_bytes():
                         f.write(chunk)
         except httpx.HTTPError:
+            part_path.unlink(missing_ok=True)
             episode.download_status = DownloadStatus.failed
             session.add(episode)
             session.commit()
             return
+
+        filename = f"{episode_id}{extension}"
+        target = STORAGE_DIR / filename
+        part_path.rename(target)
 
         episode.local_audio_path = filename
         episode.download_status = DownloadStatus.downloaded

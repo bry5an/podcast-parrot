@@ -2,10 +2,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from sqlmodel import Session
 
 from app import paths
 from app.api import directory, episodes, profiles, progress
-from app.db import init_db
+from app.db import engine, init_db
+from app.services.recovery import recover_startup_state
 
 FRONTEND_DIST = paths.resource_dir() / "frontend" / "dist"
 
@@ -13,6 +15,8 @@ FRONTEND_DIST = paths.resource_dir() / "frontend" / "dist"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    with Session(engine) as session:
+        recover_startup_state(session)
     yield
 
 
