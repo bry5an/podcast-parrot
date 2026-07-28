@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api';
 import { Ruby } from '../components/Ruby';
 import { useProfiles } from '../state/ProfileContext';
+import { invokeTauri, listenTauri } from '../lib/tauri';
 import type { Episode, Podcast, Sentence, Transcript } from '../lib/types';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5] as const;
@@ -110,7 +111,10 @@ export function Player() {
   }, [currentProfile]);
 
   useEffect(() => {
-    if (audioRef.current) audioRef.current.playbackRate = SPEEDS[speedIdx];
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.playbackRate = SPEEDS[speedIdx];
+    if (!audio.paused) pushNowPlayingRef.current(SPEEDS[speedIdx]);
   }, [speedIdx]);
 
   const refreshShadowSummary = useCallback(() => {
@@ -147,13 +151,58 @@ export function Player() {
   const savePositionRef = useRef(savePosition);
   savePositionRef.current = savePosition;
 
+  // Publishes Now Playing metadata to macOS's Control Center / media keys.
+  // Only needs to be called on discontinuities (load, play, pause, seek,
+  // speed change) - the OS interpolates elapsed time from `rate` in between.
+  const pushNowPlaying = useCallback(
+    (rate: number) => {
+      const audio = audioRef.current;
+      if (!audio || !episode) return;
+      invokeTauri('update_now_playing', {
+        title: episode.title,
+        artist: podcast?.title ?? '',
+        duration: audio.duration || 0,
+        elapsed: audio.currentTime,
+        rate,
+      });
+    },
+    [episode, podcast],
+  );
+  const pushNowPlayingRef = useRef(pushNowPlaying);
+  pushNowPlayingRef.current = pushNowPlaying;
+
   useEffect(() => {
     const flush = () => savePositionRef.current();
     window.addEventListener('beforeunload', flush);
     return () => {
       window.removeEventListener('beforeunload', flush);
       flush();
+      // Unmounting (e.g. navigating back to the library) removes the <audio>
+      // element without firing a `pause` DOM event, so the wake lock started
+      // in onPlay would otherwise never be released.
+      invokeTauri('end_playback_wake_lock');
+      invokeTauri('clear_now_playing');
     };
+  }, []);
+
+  // Media keys / Control Center send these when there's no <audio> element
+  // for the OS to control directly on macOS; forward them onto the one this
+  // page owns so it stays the single source of playback truth.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listenTauri<string>('media-command', (command) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      if (command === 'play') audio.play();
+      else if (command === 'pause') audio.pause();
+      else if (command === 'toggle') {
+        if (audio.paused) audio.play();
+        else audio.pause();
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
   }, []);
 
   const handleTimeUpdate = useCallback(() => {
@@ -188,6 +237,7 @@ export function Player() {
     activeIndexRef.current = idx;
     setActiveIndex(idx);
     audio.play();
+    pushNowPlaying(SPEEDS[speedIdx]);
   };
 
   const togglePlay = () => {
@@ -199,8 +249,10 @@ export function Player() {
 
   const onScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = Number(e.target.value);
-    if (audioRef.current) audioRef.current.currentTime = t;
+    const audio = audioRef.current;
+    if (audio) audio.currentTime = t;
     setCurrentTime(t);
+    pushNowPlaying(audio && !audio.paused ? SPEEDS[speedIdx] : 0);
   };
 
   if (!profileLoading && !currentProfile) return <Navigate to="/" replace />;
@@ -341,12 +393,19 @@ export function Player() {
                     e.currentTarget.currentTime = episode.position_seconds;
                   }
                   resumedRef.current = true;
+                  pushNowPlaying(0);
                 }}
                 onDurationChange={(e) => setDuration(e.currentTarget.duration)}
-                onPlay={() => setPlaying(true)}
+                onPlay={() => {
+                  setPlaying(true);
+                  invokeTauri('begin_playback_wake_lock');
+                  pushNowPlaying(SPEEDS[speedIdx]);
+                }}
                 onPause={() => {
                   setPlaying(false);
                   savePosition();
+                  invokeTauri('end_playback_wake_lock');
+                  pushNowPlaying(0);
                 }}
                 style={{ display: 'none' }}
               />
