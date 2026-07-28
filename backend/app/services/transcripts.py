@@ -8,7 +8,7 @@ from app.models import Episode, Podcast, Sentence, Transcript, TranscriptSource,
 from app.services.furigana import build_segments
 from app.services.rss import TIMED_TRANSCRIPT_FORMATS, classify_transcript_format
 from app.services.transcript_parsers import parse_json_transcript, parse_srt, parse_vtt
-from app.services.transcription import transcribe_audio
+from app.services.transcription import WhisperModelNotFoundError, transcribe_audio
 
 logger = logging.getLogger(__name__)
 
@@ -96,14 +96,23 @@ def ingest_transcript(session: Session, episode: Episode, audio_path: Path | Non
     if audio_path is not None and _transcribe_with_asr(session, episode, audio_path):
         return
 
-    episode.transcript_status = original_status
-    session.add(episode)
-    session.commit()
+    # _transcribe_with_asr may have already set a more specific terminal status
+    # (e.g. queued, when no ASR model is installed) — only fall back to the
+    # pre-attempt status if nothing more specific was set.
+    if episode.transcript_status == TranscriptStatus.pending:
+        episode.transcript_status = original_status
+        session.add(episode)
+        session.commit()
 
 
 def _transcribe_with_asr(session: Session, episode: Episode, audio_path: Path) -> Transcript | None:
     try:
         cues, detected_language = transcribe_audio(str(audio_path))
+    except WhisperModelNotFoundError:
+        episode.transcript_status = TranscriptStatus.queued
+        session.add(episode)
+        session.commit()
+        return None
     except Exception:
         logger.exception("ASR transcription failed for episode %s", episode.id)
         return None

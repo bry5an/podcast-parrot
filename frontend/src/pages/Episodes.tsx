@@ -223,6 +223,11 @@ export function Episodes() {
                       <span>{formatDate(ep.pub_date)}</span>
                       {ep.duration_seconds ? <span>· {formatDuration(ep.duration_seconds)}</span> : null}
                       {ep.transcript_source_url && <span style={transcriptBadgeStyle}>Transcript</span>}
+                      {ep.transcript_status === 'queued' && (
+                        <span style={queuedBadgeStyle} title="Waiting for a Whisper model — install one in Setup">
+                          Queued
+                        </span>
+                      )}
                     </div>
                     {ep.position_seconds != null && ep.duration_seconds ? (
                       <div style={progressTrackStyle} data-testid={`progress-${ep.id}`}>
@@ -310,6 +315,7 @@ const filterTabActiveStyle: React.CSSProperties = { background: '#211f1b', borde
 const sortBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, height: 32, padding: '0 13px', borderRadius: 16, border: '1px solid rgba(32,30,26,.12)', background: '#fff', font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.6)', cursor: 'pointer' };
 const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16, padding: '13px 14px', borderRadius: 13, background: '#fff', border: '1px solid rgba(32,30,26,.08)' };
 const transcriptBadgeStyle: React.CSSProperties = { font: '500 9.5px/1 IBM Plex Mono', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.12)', padding: '2px 6px', borderRadius: 5 };
+const queuedBadgeStyle: React.CSSProperties = { font: '500 9.5px/1 IBM Plex Mono', color: 'oklch(0.5 0.13 70)', background: 'oklch(0.55 0.13 70 / 0.14)', padding: '2px 6px', borderRadius: 5 };
 const progressTrackStyle: React.CSSProperties = { marginTop: 8, height: 3, borderRadius: 2, background: 'rgba(32,30,26,.08)', overflow: 'hidden' };
 const progressFillStyle: React.CSSProperties = { height: '100%', borderRadius: 2, background: 'oklch(0.55 0.055 195)' };
 const downloadBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.6)' };
