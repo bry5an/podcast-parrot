@@ -1,20 +1,18 @@
 import json
-from pathlib import Path
 
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app import paths
 from app.models import Podcast, PodcastSource
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-DATA_DIR.mkdir(exist_ok=True)
+DIRECTORY_SEED_PATH = paths.resource_dir() / "backend" / "app" / "directory_seed.json"
 
-DIRECTORY_SEED_PATH = Path(__file__).resolve().parent / "directory_seed.json"
-
-DATABASE_URL = f"sqlite:///{DATA_DIR / 'kotoba.db'}"
+DATABASE_URL = f"sqlite:///{paths.data_dir() / 'kotoba.db'}"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
 
 def init_db() -> None:
+    paths.data_dir().mkdir(parents=True, exist_ok=True)
     SQLModel.metadata.create_all(engine)
     _seed_directory()
 

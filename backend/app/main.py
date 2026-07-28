@@ -1,13 +1,13 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app import paths
 from app.api import directory, episodes, profiles, progress
 from app.db import init_db
 
-FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+FRONTEND_DIST = paths.resource_dir() / "frontend" / "dist"
 
 
 @asynccontextmanager

@@ -4,12 +4,12 @@ from pathlib import Path
 import httpx
 from sqlmodel import Session
 
+from app import paths
 from app.db import engine
 from app.models import DownloadStatus, Episode
 from app.services.transcripts import ingest_transcript
 
-STORAGE_DIR = Path(__file__).resolve().parent.parent.parent / "storage"
-STORAGE_DIR.mkdir(exist_ok=True)
+STORAGE_DIR = paths.storage_dir()
 
 
 def _extension_for(url: str, content_type: str | None) -> str:
@@ -35,6 +35,7 @@ def download_episode_audio(episode_id: int) -> None:
                 extension = _extension_for(str(response.url), response.headers.get("content-type"))
                 filename = f"{episode_id}{extension}"
                 target = STORAGE_DIR / filename
+                STORAGE_DIR.mkdir(parents=True, exist_ok=True)
                 with target.open("wb") as f:
                     for chunk in response.iter_bytes():
                         f.write(chunk)
