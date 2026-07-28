@@ -117,37 +117,34 @@ export function Library() {
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '4px 30px 28px', display: 'flex', flexDirection: 'column', gap: 11 }}>
-              {subscriptions.map((p) => (
-                <div key={p.id} style={cardStyle}>
-                  {p.artwork_url ? (
-                    <img src={p.artwork_url} alt="" style={cardArtStyle} />
-                  ) : (
-                    <div style={{ ...cardArtStyle, background: 'rgba(32,30,26,.08)' }} />
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                      <span style={{ font: '600 15px/1.3 IBM Plex Sans' }}>{p.title}</span>
-                      {p.level_tag && <span style={levelBadgeStyle}>{p.level_tag}</span>}
+              {subscriptions.map((p) => {
+                const goToEpisodes = () => navigate(`/library/podcasts/${p.id}/episodes`, { state: { podcast: p } });
+                return (
+                  <div key={p.id} style={cardStyle}>
+                    {p.artwork_url ? (
+                      <img src={p.artwork_url} alt="" style={cardArtStyle} onClick={goToEpisodes} />
+                    ) : (
+                      <div style={{ ...cardArtStyle, background: 'rgba(32,30,26,.08)' }} onClick={goToEpisodes} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                        <span style={{ font: '600 15px/1.3 IBM Plex Sans', cursor: 'pointer' }} onClick={goToEpisodes}>{p.title}</span>
+                        {p.level_tag && <span style={levelBadgeStyle}>{p.level_tag}</span>}
+                      </div>
+                      <div style={{ font: '400 12px/1.5 IBM Plex Sans', color: 'rgba(32,30,26,.55)', marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 440 }}>
+                        {p.description}
+                      </div>
                     </div>
-                    <div style={{ font: '400 12px/1.5 IBM Plex Sans', color: 'rgba(32,30,26,.55)', marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 440 }}>
-                      {p.description}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+                      <button onClick={() => unfollow(p.id)} style={unfollowBtnStyle} title="Unfollow">
+                        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6}>
+                          <path d="M5 5l10 10M15 5L5 15" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
-                    <button
-                      onClick={() => navigate(`/library/podcasts/${p.id}/episodes`, { state: { podcast: p } })}
-                      style={episodesBtnStyle}
-                    >
-                      Episodes
-                    </button>
-                    <button onClick={() => unfollow(p.id)} style={unfollowBtnStyle} title="Unfollow">
-                      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6}>
-                        <path d="M5 5l10 10M15 5L5 15" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {loaded && subscriptions.length === 0 && (
                 <div style={{ margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgba(32,30,26,.16)', borderRadius: 16 }}>
                   <div style={{ font: '600 15px/1.4 IBM Plex Sans', marginBottom: 8 }}>No podcasts followed yet</div>
@@ -176,7 +173,6 @@ const navItemActiveStyle: React.CSSProperties = { display: 'flex', alignItems: '
 const navItemStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 9, font: '500 13px/1 IBM Plex Sans', color: 'rgba(32,30,26,.55)', cursor: 'pointer' };
 const addBtnStyle: React.CSSProperties = { height: 40, padding: '0 17px', borderRadius: 20, border: 'none', background: '#211f1b', color: '#fff', display: 'flex', alignItems: 'center', gap: 8, font: '600 13px/1 IBM Plex Sans', cursor: 'pointer', boxShadow: '0 3px 12px rgba(32,30,26,.2)' };
 const cardStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16, padding: 14, borderRadius: 14, background: '#fff', border: '1px solid rgba(32,30,26,.08)' };
-const cardArtStyle: React.CSSProperties = { width: 60, height: 60, flex: 'none', borderRadius: 11, objectFit: 'cover' };
+const cardArtStyle: React.CSSProperties = { width: 60, height: 60, flex: 'none', borderRadius: 11, objectFit: 'cover', cursor: 'pointer' };
 const levelBadgeStyle: React.CSSProperties = { font: '500 10px/1 IBM Plex Mono', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.12)', padding: '3px 6px', borderRadius: 5 };
-const episodesBtnStyle: React.CSSProperties = { height: 34, padding: '0 14px', borderRadius: 17, border: '1px solid rgba(32,30,26,.14)', background: '#fff', font: '600 12px/1 IBM Plex Sans', color: '#211f1b', cursor: 'pointer' };
 const unfollowBtnStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: '50%', border: '1px solid rgba(32,30,26,.12)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.5)' };
