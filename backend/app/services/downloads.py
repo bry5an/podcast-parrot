@@ -56,3 +56,11 @@ def download_episode_audio(episode_id: int) -> None:
         session.commit()
 
         ingest_transcript(session, episode, audio_path=target)
+
+
+def retry_transcription(episode_id: int) -> None:
+    with Session(engine) as session:
+        episode = session.get(Episode, episode_id)
+        if not episode or not episode.local_audio_path:
+            return
+        ingest_transcript(session, episode, audio_path=STORAGE_DIR / episode.local_audio_path)

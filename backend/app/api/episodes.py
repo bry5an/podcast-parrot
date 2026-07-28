@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel, select
 
 from app.db import get_session
 from app.models import DownloadStatus, Episode, PlaybackState, Podcast, Sentence, TranscriptSource, TranscriptStatus
-from app.services.downloads import STORAGE_DIR, download_episode_audio
+from app.services.downloads import STORAGE_DIR, download_episode_audio, retry_transcription
 from app.services.episodes import sync_episodes
 from app.services.transcripts import get_or_build_transcript
 
@@ -122,6 +122,24 @@ def start_download(episode_id: int, background_tasks: BackgroundTasks, session: 
         session.commit()
         session.refresh(episode)
         background_tasks.add_task(download_episode_audio, episode.id)
+
+    return episode
+
+
+@router.post("/episodes/{episode_id}/transcribe", response_model=EpisodeStatusRead, status_code=202)
+def start_transcription(episode_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+    episode = session.get(Episode, episode_id)
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    if not episode.local_audio_path:
+        raise HTTPException(status_code=400, detail="Episode audio has not been downloaded yet")
+
+    if episode.transcript_status in (TranscriptStatus.none, TranscriptStatus.queued):
+        episode.transcript_status = TranscriptStatus.pending
+        session.add(episode)
+        session.commit()
+        session.refresh(episode)
+        background_tasks.add_task(retry_transcription, episode.id)
 
     return episode
 

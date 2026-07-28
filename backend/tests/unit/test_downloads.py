@@ -1,7 +1,7 @@
 import httpx
 
-from app.models import DownloadStatus, Episode, Podcast
-from app.services.downloads import download_episode_audio
+from app.models import DownloadStatus, Episode, Podcast, TranscriptStatus
+from app.services.downloads import download_episode_audio, retry_transcription
 
 
 def _make_podcast(session, **overrides) -> Podcast:
@@ -112,3 +112,54 @@ def test_download_failure_cleans_up_part_file_and_marks_failed(session, monkeypa
     session.refresh(episode)
     assert episode.download_status == DownloadStatus.failed
     assert episode.local_audio_path is None
+
+
+def test_retry_transcription_calls_ingest_transcript(session, monkeypatch, tmp_path):
+    podcast = _make_podcast(session)
+    episode = _make_episode(
+        session, podcast, local_audio_path="1.mp3", transcript_status=TranscriptStatus.queued
+    )
+    monkeypatch.setattr("app.services.downloads.engine", session.get_bind())
+    monkeypatch.setattr("app.services.downloads.STORAGE_DIR", tmp_path)
+
+    calls = []
+    monkeypatch.setattr(
+        "app.services.downloads.ingest_transcript",
+        lambda session, episode, audio_path=None: calls.append((episode.id, audio_path)),
+    )
+
+    retry_transcription(episode.id)
+
+    assert calls == [(episode.id, tmp_path / "1.mp3")]
+
+
+def test_retry_transcription_noop_without_local_audio(session, monkeypatch, tmp_path):
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast, local_audio_path=None)
+    monkeypatch.setattr("app.services.downloads.engine", session.get_bind())
+    monkeypatch.setattr("app.services.downloads.STORAGE_DIR", tmp_path)
+
+    calls = []
+    monkeypatch.setattr(
+        "app.services.downloads.ingest_transcript",
+        lambda session, episode, audio_path=None: calls.append((episode.id, audio_path)),
+    )
+
+    retry_transcription(episode.id)
+
+    assert calls == []
+
+
+def test_retry_transcription_noop_for_missing_episode(session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.services.downloads.engine", session.get_bind())
+    monkeypatch.setattr("app.services.downloads.STORAGE_DIR", tmp_path)
+
+    calls = []
+    monkeypatch.setattr(
+        "app.services.downloads.ingest_transcript",
+        lambda session, episode, audio_path=None: calls.append((episode.id, audio_path)),
+    )
+
+    retry_transcription(999)
+
+    assert calls == []
