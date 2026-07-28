@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi[standard]>=0.140.7",
+    "fastapi>=0.140.7",
     "faster-whisper>=1.2.1",
     "feedparser>=6.0.12",
     "fugashi>=1.5.2",
@@ -13,6 +13,7 @@ dependencies = [
     "lxml>=6.1.1",
     "sqlmodel>=0.0.39",
     "unidic-lite>=1.0.8",
+    "uvicorn[standard]>=0.51.0",
 ]
 
 [dependency-groups]
