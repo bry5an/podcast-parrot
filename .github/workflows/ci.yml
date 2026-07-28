@@ -125,9 +125,10 @@ jobs:
 
       # Vendored into the bundle by prepare_sidecars.sh below (README's "ASR
       # (whisper.cpp)" section) — not built from source, just needs to exist
-      # at the standard Homebrew prefix.
-      - name: Install whisper-cpp
-        run: brew install whisper-cpp
+      # at the standard Homebrew prefix. dylibbundler is that same script's
+      # tool for rpath-rewriting whisper-cli's dylibs into the bundle (#48).
+      - name: Install whisper-cpp and dylibbundler
+        run: brew install whisper-cpp dylibbundler
 
       - name: Install backend dependencies
         working-directory: backend
