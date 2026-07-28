@@ -17,6 +17,15 @@ _SPECIAL_TOKEN_RE = re.compile(r"^\[_.+\]$")
 _AFCONVERT_BIN = "/usr/bin/afconvert"
 _VAD_MODEL_PATH = paths.resource_dir() / "backend" / "app" / "ggml-silero-v5.1.2.bin"
 
+# Neither subprocess call had a timeout, so a stuck decode/inference (#57 saw
+# whisper-cli's normal "trying to decode with miniaudio" step never return)
+# blocked the background task forever with no way to recover. afconvert
+# should finish in low single-digit seconds even for a multi-hour episode;
+# whisper-cli's model inference is the slow step and needs enough headroom
+# for a full-length episode on CPU-only hardware without a GPU/Metal backend.
+_AFCONVERT_TIMEOUT_SECONDS = 120
+_WHISPER_CLI_TIMEOUT_SECONDS = 1800
+
 
 class TranscriptionError(Exception):
     """Base class for ASR failures, distinct from unrelated exceptions."""
@@ -84,11 +93,19 @@ def _segment_to_cues(segment: "_Segment") -> list[Cue]:
 
 
 def _decode_to_wav(audio_path: str, wav_path: str) -> None:
-    result = subprocess.run(
-        [_AFCONVERT_BIN, "-f", "WAVE", "-d", "LEI16@16000", "-c", "1", audio_path, wav_path],
-        capture_output=True,
-        text=True,
-    )
+    command = [_AFCONVERT_BIN, "-f", "WAVE", "-d", "LEI16@16000", "-c", "1", audio_path, wav_path]
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=_AFCONVERT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stderr = (exc.stderr or "").strip()
+        raise TranscriptionError(
+            f"afconvert timed out after {_AFCONVERT_TIMEOUT_SECONDS}s" + (f": {stderr}" if stderr else "")
+        ) from None
     if result.returncode != 0:
         raise TranscriptionError(f"afconvert failed ({result.returncode}): {result.stderr.strip()}")
 
@@ -115,7 +132,18 @@ def _run_whisper_cli(wav_path: str, language: str | None, output_prefix: str) ->
         output_prefix,
         "-np",
     ]
-    result = subprocess.run(command, capture_output=True, text=True)
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=_WHISPER_CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stderr = (exc.stderr or "").strip()
+        raise TranscriptionError(
+            f"whisper-cli timed out after {_WHISPER_CLI_TIMEOUT_SECONDS}s" + (f": {stderr}" if stderr else "")
+        ) from None
     if result.returncode != 0:
         raise TranscriptionError(f"whisper-cli failed ({result.returncode}): {result.stderr.strip()}")
 
