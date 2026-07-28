@@ -100,3 +100,22 @@ class Sentence(SQLModel, table=True):
     # [{base, reading}] — per-morpheme for Japanese sentences, single collapsed
     # segment (reading always "") for everything else. See services/furigana.py.
     segments: list[dict] = Field(default_factory=list, sa_column=Column(JSON))
+
+
+class PlaybackState(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("profile_id", "episode_id", name="uq_profile_episode_playback"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id", index=True)
+    episode_id: int = Field(foreign_key="episode.id", index=True)
+    position_seconds: float = 0
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ShadowEvent(SQLModel, table=True):
+    # Append-only; daily counts and streaks are derived from distinct rows here, never a mutable counter.
+    id: int | None = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id", index=True)
+    episode_id: int = Field(foreign_key="episode.id", index=True)
+    sentence_id: int = Field(foreign_key="sentence.id", index=True)
+    shadowed_at: datetime = Field(default_factory=datetime.utcnow, index=True)

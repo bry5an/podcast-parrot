@@ -31,6 +31,7 @@ function makeEpisode(overrides: Partial<Episode>): Episode {
     transcript_source_url: null,
     download_status: 'idle',
     transcript_status: 'none',
+    position_seconds: null,
     ...overrides,
   };
 }
@@ -76,6 +77,27 @@ describe('Episodes', () => {
     });
     expect(screen.getByText('Downloaded episode')).toBeInTheDocument();
     expect(api.listEpisodes).toHaveBeenLastCalledWith(1, { profileId: 1, filter: 'downloaded', sort: 'newest' });
+  });
+
+  it('shows a Continue button and progress bar for a downloaded, in-progress episode', async () => {
+    vi.mocked(api.listEpisodes).mockResolvedValue([
+      makeEpisode({
+        id: 1,
+        title: 'In progress episode',
+        download_status: 'downloaded',
+        duration_seconds: 100,
+        position_seconds: 40,
+      }),
+      makeEpisode({ id: 2, title: 'Fresh episode', download_status: 'downloaded', duration_seconds: 100 }),
+    ]);
+    renderEpisodes();
+
+    await screen.findByText('In progress episode');
+    expect(screen.getByRole('button', { name: /Continue/ })).toBeInTheDocument();
+    expect(screen.getByTestId('progress-1')).toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: /Shadow/ })).toBeInTheDocument();
+    expect(screen.queryByTestId('progress-2')).not.toBeInTheDocument();
   });
 
   it('toggles sort order and re-fetches with the new sort', async () => {

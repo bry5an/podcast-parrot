@@ -31,6 +31,7 @@ const existingProfile: Profile = {
 describe('ProfilePicker', () => {
   beforeEach(() => {
     vi.mocked(api.listProfiles).mockResolvedValue([]);
+    vi.mocked(api.getStreak).mockResolvedValue({ streak: 0 });
   });
 
   it('lists existing profiles and lets the user open the create form', async () => {
@@ -43,6 +44,19 @@ describe('ProfilePicker', () => {
 
     expect(screen.getByText('Create a learner')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('e.g. Kenji')).toBeInTheDocument();
+  });
+
+  it('shows a streak subline for a profile with an active streak, and none for a zero streak', async () => {
+    const otherProfile: Profile = { ...existingProfile, id: 2, name: 'Aoi' };
+    vi.mocked(api.listProfiles).mockResolvedValue([existingProfile, otherProfile]);
+    vi.mocked(api.getStreak).mockImplementation((id) =>
+      Promise.resolve({ streak: id === existingProfile.id ? 5 : 0 }),
+    );
+    renderPicker();
+
+    await screen.findByText('Kenji');
+    expect(await screen.findByTestId(`streak-${existingProfile.id}`)).toHaveTextContent('5 days streak');
+    expect(screen.queryByTestId(`streak-${otherProfile.id}`)).not.toBeInTheDocument();
   });
 
   it('disables submit until a name is entered, then creates the profile', async () => {

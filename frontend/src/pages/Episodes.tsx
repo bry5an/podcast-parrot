@@ -205,33 +205,52 @@ export function Episodes() {
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '4px 30px 28px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {episodes.map((ep) => (
-              <div key={ep.id} style={rowStyle}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ font: '600 14px/1.35 IBM Plex Sans', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ep.title}
+            {episodes.map((ep) => {
+              // "In progress" excludes both a near-zero start and the last few
+              // seconds, so a barely-begun or essentially-finished episode
+              // still reads as "Shadow" rather than "Continue".
+              const inProgress =
+                ep.position_seconds != null &&
+                ep.position_seconds > 5 &&
+                (!ep.duration_seconds || ep.position_seconds < ep.duration_seconds - 5);
+              return (
+                <div key={ep.id} style={rowStyle}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ font: '600 14px/1.35 IBM Plex Sans', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ep.title}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, font: '400 11.5px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)' }}>
+                      <span>{formatDate(ep.pub_date)}</span>
+                      {ep.duration_seconds ? <span>· {formatDuration(ep.duration_seconds)}</span> : null}
+                      {ep.transcript_source_url && <span style={transcriptBadgeStyle}>Transcript</span>}
+                    </div>
+                    {ep.position_seconds != null && ep.duration_seconds ? (
+                      <div style={progressTrackStyle} data-testid={`progress-${ep.id}`}>
+                        <div
+                          style={{
+                            ...progressFillStyle,
+                            width: `${Math.min(100, (ep.position_seconds / ep.duration_seconds) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    ) : null}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, font: '400 11.5px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)' }}>
-                    <span>{formatDate(ep.pub_date)}</span>
-                    {ep.duration_seconds ? <span>· {formatDuration(ep.duration_seconds)}</span> : null}
-                    {ep.transcript_source_url && <span style={transcriptBadgeStyle}>Transcript</span>}
-                  </div>
+                  {ep.download_status === 'downloaded' && (
+                    <button
+                      onClick={() => navigate(`/library/podcasts/${id}/episodes/${ep.id}/player`, { state: { podcast, episode: ep } })}
+                      style={shadowBtnStyle}
+                      title={inProgress ? 'Continue shadowing this episode' : 'Shadow this episode'}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M6 4l10 6-10 6V4z" />
+                      </svg>
+                      {inProgress ? 'Continue' : 'Shadow'}
+                    </button>
+                  )}
+                  <DownloadButton episode={ep} onDownload={() => startDownload(ep)} onRemove={() => removeDownload(ep)} />
                 </div>
-                {ep.download_status === 'downloaded' && (
-                  <button
-                    onClick={() => navigate(`/library/podcasts/${id}/episodes/${ep.id}/player`, { state: { podcast, episode: ep } })}
-                    style={shadowBtnStyle}
-                    title="Shadow this episode"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M6 4l10 6-10 6V4z" />
-                    </svg>
-                    Shadow
-                  </button>
-                )}
-                <DownloadButton episode={ep} onDownload={() => startDownload(ep)} onRemove={() => removeDownload(ep)} />
-              </div>
-            ))}
+              );
+            })}
             {loaded && episodes.length === 0 && (
               <div style={{ margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgba(32,30,26,.16)', borderRadius: 16 }}>
                 <div style={{ font: '600 15px/1.4 IBM Plex Sans', marginBottom: 8 }}>No episodes here</div>
@@ -291,6 +310,8 @@ const filterTabActiveStyle: React.CSSProperties = { background: '#211f1b', borde
 const sortBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, height: 32, padding: '0 13px', borderRadius: 16, border: '1px solid rgba(32,30,26,.12)', background: '#fff', font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.6)', cursor: 'pointer' };
 const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16, padding: '13px 14px', borderRadius: 13, background: '#fff', border: '1px solid rgba(32,30,26,.08)' };
 const transcriptBadgeStyle: React.CSSProperties = { font: '500 9.5px/1 IBM Plex Mono', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.12)', padding: '2px 6px', borderRadius: 5 };
+const progressTrackStyle: React.CSSProperties = { marginTop: 8, height: 3, borderRadius: 2, background: 'rgba(32,30,26,.08)', overflow: 'hidden' };
+const progressFillStyle: React.CSSProperties = { height: '100%', borderRadius: 2, background: 'oklch(0.55 0.055 195)' };
 const downloadBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.6)' };
 const downloadBtnDoneStyle: React.CSSProperties = { background: 'oklch(0.6 0.06 155 / 0.14)', borderColor: 'oklch(0.6 0.06 155 / 0.4)' };
 const shadowBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 14px', borderRadius: 17, border: '1px solid rgba(32,30,26,.14)', background: '#211f1b', color: '#fff', font: '600 12px/1 IBM Plex Sans', cursor: 'pointer', flex: 'none' };

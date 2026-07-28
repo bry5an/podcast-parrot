@@ -3,7 +3,9 @@ from datetime import datetime
 from app.models import (
     DownloadStatus,
     Episode,
+    PlaybackState,
     Podcast,
+    Profile,
     Sentence,
     Transcript,
     TranscriptSource,
@@ -72,6 +74,42 @@ def test_list_episodes(client, session):
 
     response = client.get(f"/api/podcasts/{podcast.id}/episodes", params={"filter": "downloaded"})
     assert [e["title"] for e in response.json()] == ["New episode"]
+
+
+def test_list_episodes_surfaces_position_for_profile(client, session):
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast, guid="a", title="A")
+    profile = Profile(name="Kenji")
+    session.add(profile)
+    session.commit()
+    session.refresh(profile)
+    session.add(PlaybackState(profile_id=profile.id, episode_id=episode.id, position_seconds=17.5))
+    session.commit()
+
+    response = client.get(f"/api/podcasts/{podcast.id}/episodes", params={"profile_id": profile.id})
+    assert response.status_code == 200
+    assert response.json()[0]["position_seconds"] == 17.5
+
+    response = client.get(f"/api/podcasts/{podcast.id}/episodes")
+    assert response.json()[0]["position_seconds"] is None
+
+
+def test_list_episodes_unplayed_filter_excludes_started_episodes(client, session):
+    podcast = _make_podcast(session)
+    started = _make_episode(session, podcast, guid="started", title="Started")
+    _make_episode(session, podcast, guid="fresh", title="Fresh")
+    profile = Profile(name="Kenji")
+    session.add(profile)
+    session.commit()
+    session.refresh(profile)
+    session.add(PlaybackState(profile_id=profile.id, episode_id=started.id, position_seconds=5))
+    session.commit()
+
+    response = client.get(
+        f"/api/podcasts/{podcast.id}/episodes", params={"profile_id": profile.id, "filter": "unplayed"}
+    )
+    assert response.status_code == 200
+    assert [e["title"] for e in response.json()] == ["Fresh"]
 
 
 def test_list_episodes_missing_podcast_returns_404(client):

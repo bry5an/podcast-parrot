@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { DIRECTION_META, PALETTE } from '../lib/palette';
@@ -16,6 +16,14 @@ export function ProfilePicker() {
   const [direction, setDirection] = useState<Direction>('en_ja');
   const [showFurigana, setShowFurigana] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [streaks, setStreaks] = useState<Record<number, number>>({});
+
+  useEffect(() => {
+    if (!profiles.length) return;
+    Promise.all(profiles.map((p) => api.getStreak(p.id).then((s) => [p.id, s.streak] as const))).then(
+      (pairs) => setStreaks(Object.fromEntries(pairs)),
+    );
+  }, [profiles]);
 
   const pick = (id: number) => {
     selectProfile(id);
@@ -78,6 +86,11 @@ export function ProfilePicker() {
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ font: '600 17px/1.2 IBM Plex Sans' }}>{p.name}</div>
                     <div style={styles.mono}>{meta.code}</div>
+                    {streaks[p.id] ? (
+                      <div style={styles.streak} data-testid={`streak-${p.id}`}>
+                        🔥 {streaks[p.id]} day{streaks[p.id] === 1 ? '' : 's'} streak
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               );
@@ -254,6 +267,7 @@ const styles: Record<string, React.CSSProperties> = {
   avatar: { width: 118, height: 118, borderRadius: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', font: '600 42px/1 IBM Plex Sans', color: '#fff', position: 'relative' },
   flagBadge: { position: 'absolute', bottom: -6, right: -6, width: 38, height: 38, borderRadius: '50%', background: '#fff', border: '1px solid rgba(32,30,26,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, boxShadow: '0 3px 10px rgba(32,30,26,.15)' },
   mono: { font: '500 11px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)', marginTop: 6 },
+  streak: { font: '600 11px/1 IBM Plex Mono', color: 'oklch(0.56 0.1 45)', marginTop: 8 },
   addAvatar: { width: 118, height: 118, borderRadius: 26, border: '1.5px dashed rgba(32,30,26,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(32,30,26,.4)' },
   createView: { flex: 1, width: '100%', maxWidth: 520, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24, padding: '20px 24px' },
   newAvatar: { width: 72, height: 72, flex: 'none', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', font: '600 28px/1 IBM Plex Sans', color: '#fff' },
