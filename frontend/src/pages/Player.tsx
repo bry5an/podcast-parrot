@@ -208,10 +208,12 @@ export function Player() {
 
   const handleTimeUpdate = useCallback(() => {
     const audio = audioRef.current;
-    const list = sentencesRef.current;
-    if (!audio || list.length === 0) return;
+    if (!audio) return;
     const t = audio.currentTime;
     setCurrentTime(t);
+
+    const list = sentencesRef.current;
+    if (list.length === 0) return;
 
     const prevIndex = activeIndexRef.current;
     if (prevIndex !== -1 && t >= list[prevIndex].end_time) {

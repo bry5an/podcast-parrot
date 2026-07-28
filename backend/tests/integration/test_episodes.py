@@ -281,3 +281,22 @@ def test_get_transcript_unavailable_returns_404(client, session):
 
     response = client.get(f"/api/episodes/{episode.id}/transcript")
     assert response.status_code == 404
+
+
+def test_stream_audio_serves_file_regardless_of_transcript_status(client, session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.api.episodes.STORAGE_DIR", tmp_path)
+    podcast = _make_podcast(session)
+    audio_file = tmp_path / "1.mp3"
+    audio_file.write_bytes(b"fake audio")
+    episode = _make_episode(
+        session,
+        podcast,
+        local_audio_path="1.mp3",
+        download_status=DownloadStatus.downloaded,
+        transcript_status=TranscriptStatus.none,
+        transcript_source_url=None,
+    )
+
+    response = client.get(f"/api/episodes/{episode.id}/audio")
+    assert response.status_code == 200
+    assert response.content == b"fake audio"
