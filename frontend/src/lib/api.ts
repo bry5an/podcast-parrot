@@ -88,6 +88,8 @@ export const api = {
     request<EpisodeStatus>(`/api/episodes/${episodeId}/download`, { method: 'POST' }),
   deleteDownload: (episodeId: number) =>
     request<void>(`/api/episodes/${episodeId}/download`, { method: 'DELETE' }),
+  transcribeEpisode: (episodeId: number) =>
+    request<EpisodeStatus>(`/api/episodes/${episodeId}/transcribe`, { method: 'POST' }),
   getEpisodeStatus: (episodeId: number) => request<EpisodeStatus>(`/api/episodes/${episodeId}/status`),
   getTranscript: (episodeId: number) => request<Transcript>(`/api/episodes/${episodeId}/transcript`),
   audioUrl: (episodeId: number) => `/api/episodes/${episodeId}/audio`,

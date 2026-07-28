@@ -147,6 +147,57 @@ def test_start_download_missing_episode_returns_404(client):
     assert response.status_code == 404
 
 
+def test_start_transcription(client, session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(
+        session,
+        podcast,
+        download_status=DownloadStatus.downloaded,
+        local_audio_path="1.mp3",
+        transcript_status=TranscriptStatus.none,
+    )
+
+    calls = []
+    monkeypatch.setattr("app.api.episodes.retry_transcription", lambda episode_id: calls.append(episode_id))
+
+    response = client.post(f"/api/episodes/{episode.id}/transcribe")
+    assert response.status_code == 202
+    assert response.json()["transcript_status"] == "pending"
+    assert calls == [episode.id]
+
+
+def test_start_transcription_missing_episode_returns_404(client):
+    response = client.post("/api/episodes/999/transcribe")
+    assert response.status_code == 404
+
+
+def test_start_transcription_without_audio_returns_400(client, session):
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast, local_audio_path=None)
+
+    response = client.post(f"/api/episodes/{episode.id}/transcribe")
+    assert response.status_code == 400
+
+
+def test_start_transcription_noop_when_already_transcribed(client, session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(
+        session,
+        podcast,
+        download_status=DownloadStatus.downloaded,
+        local_audio_path="1.mp3",
+        transcript_status=TranscriptStatus.full,
+    )
+
+    calls = []
+    monkeypatch.setattr("app.api.episodes.retry_transcription", lambda episode_id: calls.append(episode_id))
+
+    response = client.post(f"/api/episodes/{episode.id}/transcribe")
+    assert response.status_code == 202
+    assert response.json()["transcript_status"] == "full"
+    assert calls == []
+
+
 def test_delete_download(client, session, monkeypatch, tmp_path):
     monkeypatch.setattr("app.api.episodes.STORAGE_DIR", tmp_path)
     podcast = _make_podcast(session)

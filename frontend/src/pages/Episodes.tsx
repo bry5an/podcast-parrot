@@ -58,6 +58,7 @@ export function Episodes() {
   const [filter, setFilter] = useState<EpisodeFilter>('all');
   const [sort, setSort] = useState<EpisodeSort>('newest');
   const pollTimers = useRef<Record<number, number>>({});
+  const transcriptPollTimers = useRef<Record<number, number>>({});
 
   // requestSeq guards against out-of-order responses: only the response to the
   // most-recently-issued request is applied, so a slow request for a stale
@@ -95,8 +96,10 @@ export function Episodes() {
 
   useEffect(() => {
     const timers = pollTimers.current;
+    const transcriptTimers = transcriptPollTimers.current;
     return () => {
       Object.values(timers).forEach((t) => window.clearInterval(t));
+      Object.values(transcriptTimers).forEach((t) => window.clearInterval(t));
     };
   }, []);
 
@@ -134,6 +137,34 @@ export function Episodes() {
     await api.deleteDownload(episode.id);
     refreshRef.current();
   };
+
+  const pollTranscriptStatus = useCallback((episodeId: number) => {
+    if (transcriptPollTimers.current[episodeId]) return;
+    const timer = window.setInterval(async () => {
+      const status = await api.getEpisodeStatus(episodeId);
+      if (status.transcript_status !== 'pending') {
+        window.clearInterval(transcriptPollTimers.current[episodeId]);
+        delete transcriptPollTimers.current[episodeId];
+        refreshRef.current();
+      } else {
+        setEpisodes((prev) =>
+          prev.map((e) => (e.id === episodeId ? { ...e, transcript_status: status.transcript_status } : e)),
+        );
+      }
+    }, 1200);
+    transcriptPollTimers.current[episodeId] = timer;
+  }, []);
+
+  const startTranscription = useCallback(
+    async (episode: Episode) => {
+      setEpisodes((prev) =>
+        prev.map((e) => (e.id === episode.id ? { ...e, transcript_status: 'pending' } : e)),
+      );
+      await api.transcribeEpisode(episode.id);
+      pollTranscriptStatus(episode.id);
+    },
+    [pollTranscriptStatus],
+  );
 
   const downloadAll = () => {
     episodes
@@ -252,6 +283,12 @@ export function Episodes() {
                       {inProgress ? 'Continue' : 'Shadow'}
                     </button>
                   )}
+                  {ep.download_status === 'downloaded' &&
+                    (ep.transcript_status === 'none' ||
+                      ep.transcript_status === 'queued' ||
+                      ep.transcript_status === 'pending') && (
+                      <TranscribeButton episode={ep} onTranscribe={() => startTranscription(ep)} />
+                    )}
                   <DownloadButton episode={ep} onDownload={() => startDownload(ep)} onRemove={() => removeDownload(ep)} />
                 </div>
               );
@@ -302,6 +339,26 @@ function DownloadButton({
     <button onClick={onDownload} style={downloadBtnStyle} title={episode.download_status === 'failed' ? 'Retry download' : 'Download'}>
       <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke={episode.download_status === 'failed' ? 'oklch(0.5 0.13 25)' : 'currentColor'} strokeWidth={1.7}>
         <path d="M10 3v10M6 9l4 4 4-4M4 16h12" />
+      </svg>
+    </button>
+  );
+}
+
+function TranscribeButton({ episode, onTranscribe }: { episode: Episode; onTranscribe: () => void }) {
+  if (episode.transcript_status === 'pending') {
+    return (
+      <div style={downloadBtnStyle} title="Transcribing…">
+        <svg className="spinner" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="rgba(32,30,26,.55)" strokeWidth={1.8}>
+          <path d="M10 3a7 7 0 1 1-7 7" />
+        </svg>
+      </div>
+    );
+  }
+  return (
+    <button onClick={onTranscribe} style={downloadBtnStyle} title={episode.transcript_status === 'queued' ? 'Retry transcription' : 'Transcribe'}>
+      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.7}>
+        <path d="M5 4h10v12H5z" />
+        <path d="M7 8h6M7 11h6M7 14h3" />
       </svg>
     </button>
   );

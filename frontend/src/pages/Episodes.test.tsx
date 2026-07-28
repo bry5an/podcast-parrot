@@ -111,6 +111,34 @@ describe('Episodes', () => {
     expect(screen.getByText('Queued')).toBeInTheDocument();
   });
 
+  it('shows a Transcribe button for a downloaded episode with no transcript, and triggers the endpoint', async () => {
+    vi.mocked(api.listEpisodes).mockResolvedValue([
+      makeEpisode({ id: 1, title: 'Untranscribed episode', download_status: 'downloaded', transcript_status: 'none' }),
+      makeEpisode({ id: 2, title: 'Transcribed episode', download_status: 'downloaded', transcript_status: 'full' }),
+    ]);
+    vi.mocked(api.transcribeEpisode).mockResolvedValue({ id: 1, download_status: 'downloaded', transcript_status: 'pending' });
+
+    renderEpisodes();
+
+    await screen.findByText('Untranscribed episode');
+    const transcribeButton = screen.getByRole('button', { name: 'Transcribe' });
+    expect(screen.queryAllByRole('button', { name: /Transcribe|Retry transcription/ })).toHaveLength(1);
+
+    await userEvent.click(transcribeButton);
+
+    expect(api.transcribeEpisode).toHaveBeenCalledWith(1);
+  });
+
+  it('labels the Transcribe button as a retry when the episode is queued', async () => {
+    vi.mocked(api.listEpisodes).mockResolvedValue([
+      makeEpisode({ id: 1, title: 'Queued episode', download_status: 'downloaded', transcript_status: 'queued' }),
+    ]);
+    renderEpisodes();
+
+    await screen.findByText('Queued episode');
+    expect(screen.getByRole('button', { name: 'Retry transcription' })).toBeInTheDocument();
+  });
+
   it('toggles sort order and re-fetches with the new sort', async () => {
     vi.mocked(api.listEpisodes).mockResolvedValue([makeEpisode({ id: 1, title: 'Episode' })]);
     renderEpisodes();
