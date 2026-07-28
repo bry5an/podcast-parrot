@@ -110,3 +110,16 @@ def test_recover_handles_missing_storage_dir(session, monkeypatch, tmp_path):
     monkeypatch.setattr("app.services.recovery.STORAGE_DIR", tmp_path / "does-not-exist")
 
     recover_startup_state(session)
+
+
+def test_recover_deletes_stale_model_part_files(session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.services.recovery.paths.models_dir", lambda: tmp_path)
+    part_file = tmp_path / "ggml-base.bin.part"
+    part_file.write_bytes(b"partial")
+    keep_file = tmp_path / "ggml-tiny.bin"
+    keep_file.write_bytes(b"complete")
+
+    recover_startup_state(session)
+
+    assert not part_file.exists()
+    assert keep_file.exists()

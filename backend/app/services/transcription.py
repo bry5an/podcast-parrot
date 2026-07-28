@@ -8,13 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app import paths
+from app.services import whisper_models
 from app.services.transcript_parsers import Cue
 
 _SENTENCE_TERMINATOR_RE = re.compile(r"[。！？.!?]")
 _SPECIAL_TOKEN_RE = re.compile(r"^\[_.+\]$")
 
 _AFCONVERT_BIN = "/usr/bin/afconvert"
-_DEFAULT_MODEL_FILENAME = "ggml-base.bin"
 _VAD_MODEL_PATH = paths.resource_dir() / "backend" / "app" / "ggml-silero-v5.1.2.bin"
 
 
@@ -52,7 +52,7 @@ def _model_path() -> Path:
     override = os.environ.get("KOTOBA_WHISPER_MODEL")
     if override:
         return Path(override).expanduser().resolve()
-    return paths.models_dir() / _DEFAULT_MODEL_FILENAME
+    return whisper_models.active_model_path()
 
 
 def _segment_to_cues(segment: "_Segment") -> list[Cue]:

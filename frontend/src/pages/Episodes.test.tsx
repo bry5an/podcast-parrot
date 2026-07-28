@@ -100,6 +100,17 @@ describe('Episodes', () => {
     expect(screen.queryByTestId('progress-2')).not.toBeInTheDocument();
   });
 
+  it('shows a queued badge for an episode waiting on an ASR model', async () => {
+    vi.mocked(api.listEpisodes).mockResolvedValue([
+      makeEpisode({ id: 1, title: 'Queued episode', transcript_status: 'queued' }),
+      makeEpisode({ id: 2, title: 'Untranscribed episode', transcript_status: 'none' }),
+    ]);
+    renderEpisodes();
+
+    await screen.findByText('Queued episode');
+    expect(screen.getByText('Queued')).toBeInTheDocument();
+  });
+
   it('toggles sort order and re-fetches with the new sort', async () => {
     vi.mocked(api.listEpisodes).mockResolvedValue([makeEpisode({ id: 1, title: 'Episode' })]);
     renderEpisodes();

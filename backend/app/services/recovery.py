@@ -1,5 +1,6 @@
 from sqlmodel import Session, select
 
+from app import paths
 from app.models import DownloadStatus, Episode, Transcript, TranscriptSource, TranscriptStatus
 from app.services.downloads import STORAGE_DIR
 
@@ -41,7 +42,8 @@ def _recover_interrupted_downloads(session: Session) -> None:
 
 
 def _delete_stale_part_files() -> None:
-    if not STORAGE_DIR.is_dir():
-        return
-    for part_file in STORAGE_DIR.glob("*.part"):
-        part_file.unlink(missing_ok=True)
+    for directory in (STORAGE_DIR, paths.models_dir()):
+        if not directory.is_dir():
+            continue
+        for part_file in directory.glob("*.part"):
+            part_file.unlink(missing_ok=True)

@@ -31,7 +31,7 @@ export interface Podcast {
 }
 
 export type DownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'failed';
-export type TranscriptStatus = 'none' | 'pending' | 'auto' | 'full';
+export type TranscriptStatus = 'none' | 'pending' | 'queued' | 'auto' | 'full';
 export type EpisodeFilter = 'all' | 'unplayed' | 'downloaded';
 export type EpisodeSort = 'newest' | 'oldest';
 
@@ -89,4 +89,23 @@ export interface ShadowSummary {
 
 export interface Streak {
   streak: number;
+}
+
+export type WhisperModelName = 'tiny' | 'base' | 'small';
+
+export interface WhisperModel {
+  name: WhisperModelName;
+  size_bytes: number;
+  installed: boolean;
+  active: boolean;
+}
+
+export type WhisperModelState = 'not_installed' | 'downloading' | 'verifying' | 'installed' | 'failed';
+export type WhisperModelError = 'offline' | 'network' | 'disk_space' | 'checksum' | 'unknown' | null;
+
+export interface WhisperModelStatus {
+  state: WhisperModelState;
+  bytes_done: number;
+  bytes_total: number;
+  error: WhisperModelError;
 }

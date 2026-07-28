@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { DIRECTION_META, PALETTE } from '../lib/palette';
 import { useProfiles } from '../state/ProfileContext';
+import { ASR_SETUP_SEEN_KEY } from './AsrSetup';
 import type { Direction } from '../lib/types';
 
 const initial = (name: string) => (name.trim()[0] || '?').toUpperCase();
@@ -24,6 +25,13 @@ export function ProfilePicker() {
       (pairs) => setStreaks(Object.fromEntries(pairs)),
     );
   }, [profiles]);
+
+  useEffect(() => {
+    if (localStorage.getItem(ASR_SETUP_SEEN_KEY) === '1') return;
+    api.listModels().then((models) => {
+      if (!models.some((m) => m.installed)) navigate('/setup');
+    });
+  }, [navigate]);
 
   const pick = (id: number) => {
     selectProfile(id);

@@ -55,6 +55,7 @@ class DownloadStatus(str, Enum):
 class TranscriptStatus(str, Enum):
     none = "none"
     pending = "pending"
+    queued = "queued"
     auto = "auto"
     full = "full"
 

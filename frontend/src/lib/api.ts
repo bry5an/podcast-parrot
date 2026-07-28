@@ -9,6 +9,8 @@ import type {
   ShadowSummary,
   Streak,
   Transcript,
+  WhisperModel,
+  WhisperModelStatus,
 } from './types';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -89,4 +91,9 @@ export const api = {
   getShadowSummary: (profileId: number, episodeId: number) =>
     request<ShadowSummary>(`/api/profiles/${profileId}/episodes/${episodeId}/shadow-summary`),
   getStreak: (profileId: number) => request<Streak>(`/api/profiles/${profileId}/streak`),
+
+  listModels: () => request<WhisperModel[]>('/api/models'),
+  downloadModel: (name: string) => request<WhisperModel>(`/api/models/${name}`, { method: 'POST' }),
+  getModelStatus: (name: string) => request<WhisperModelStatus>(`/api/models/${name}/status`),
+  deleteModel: (name: string) => request<void>(`/api/models/${name}`, { method: 'DELETE' }),
 };

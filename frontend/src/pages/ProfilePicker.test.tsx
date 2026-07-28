@@ -32,6 +32,12 @@ describe('ProfilePicker', () => {
   beforeEach(() => {
     vi.mocked(api.listProfiles).mockResolvedValue([]);
     vi.mocked(api.getStreak).mockResolvedValue({ streak: 0 });
+    vi.mocked(api.listModels).mockResolvedValue([
+      { name: 'tiny', size_bytes: 1, installed: true, active: false },
+      { name: 'base', size_bytes: 1, installed: false, active: true },
+      { name: 'small', size_bytes: 1, installed: false, active: false },
+    ]);
+    localStorage.setItem('kotoba.asrSetupSeen', '1');
   });
 
   it('lists existing profiles and lets the user open the create form', async () => {
