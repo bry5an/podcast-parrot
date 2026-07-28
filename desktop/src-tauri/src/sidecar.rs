@@ -152,6 +152,7 @@ fn spawn_health_poll(app: AppHandle, state: Arc<SidecarState>) {
                 if state.startup_decided.swap(true, Ordering::SeqCst) {
                     return; // decided elsewhere first (e.g. a crash right at the finish line)
                 }
+                log::info!("kotoba-backend is healthy, navigating to the live app");
                 let url = Url::parse(&format!("http://127.0.0.1:{}/", state.port)).expect("valid url");
                 navigate_main_window(&app, url);
                 return;
