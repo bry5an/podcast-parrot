@@ -11,9 +11,21 @@ import type {
   Transcript,
 } from './types';
 
+declare global {
+  interface Window {
+    // Injected into index.html by the packaged backend's per-launch auth
+    // token (see backend/app/main.py); empty/undefined in dev.
+    KOTOBA_AUTH_TOKEN?: string;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = window.KOTOBA_AUTH_TOKEN;
   const res = await fetch(path, {
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { 'x-kotoba-token': token } : {}),
+    },
     ...init,
   });
   if (!res.ok) {
