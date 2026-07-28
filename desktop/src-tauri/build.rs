@@ -12,6 +12,7 @@ fn main() {
     );
     tauri_build::try_build(attributes).expect("failed to run tauri-build");
     stage_internal_next_to_dev_binary();
+    stage_whisper_libs_next_to_dev_binary();
 }
 
 /// `tauri_build::build()` copies the `kotoba-backend` externalBin into
@@ -29,21 +30,43 @@ fn stage_internal_next_to_dev_binary() {
         return;
     }
 
-    // OUT_DIR is target/<profile>/build/<pkg>-<hash>/out; target/<profile> is
-    // three levels up. Re-copied on every build.rs rerun, which tauri_build
-    // already triggers whenever the sidecar binary in binaries/ changes (it
-    // emits its own rerun-if-changed for that file), so re-running
-    // prepare_sidecars.sh and rebuilding picks up a fresh _internal too.
-    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    let target_dir = out_dir
-        .ancestors()
-        .nth(3)
-        .expect("OUT_DIR should be nested three levels under target/<profile>")
-        .to_path_buf();
-
+    let target_dir = dev_target_dir();
     let internal_dest = target_dir.join("_internal");
     let _ = fs::remove_dir_all(&internal_dest);
     copy_dir_recursive(&internal_src, &internal_dest);
+}
+
+/// Same story as `_internal` above, but for whisper-cli's self-contained
+/// dylibs + ggml backend plugins (#48): `prepare_sidecars.sh` stages them at
+/// `binaries/libs/`, `externalBin` only copies the `whisper-cli` file itself
+/// into `target/<profile>/`, and whisper-cli's rewritten load commands
+/// (`@executable_path/libs/...`) expect `libs/` sitting right next to it.
+fn stage_whisper_libs_next_to_dev_binary() {
+    let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+    let libs_src = manifest_dir.join("binaries/libs");
+    if !libs_src.is_dir() {
+        println!("cargo:warning=desktop/src-tauri/binaries/libs not found — run desktop/scripts/prepare_sidecars.sh before `cargo tauri dev`");
+        return;
+    }
+
+    let target_dir = dev_target_dir();
+    let libs_dest = target_dir.join("libs");
+    let _ = fs::remove_dir_all(&libs_dest);
+    copy_dir_recursive(&libs_src, &libs_dest);
+}
+
+/// OUT_DIR is target/<profile>/build/<pkg>-<hash>/out; target/<profile> is
+/// three levels up. Re-copied on every build.rs rerun, which tauri_build
+/// already triggers whenever a sidecar binary in binaries/ changes (it emits
+/// its own rerun-if-changed for those files), so re-running
+/// prepare_sidecars.sh and rebuilding picks up fresh copies here too.
+fn dev_target_dir() -> PathBuf {
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    out_dir
+        .ancestors()
+        .nth(3)
+        .expect("OUT_DIR should be nested three levels under target/<profile>")
+        .to_path_buf()
 }
 
 fn copy_dir_recursive(src: &Path, dest: &Path) {

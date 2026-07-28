@@ -9,6 +9,10 @@ Repo: **`bry5an/podcast-parrot`** (origin). `gh` is already authenticated as `br
 
 This repo has an evolving memory record (per-issue gotchas for whisper.cpp, PyInstaller, the Tauri sidecar, objc2, etc.) — consult it for context on the area you're touching, and it'll pick up whatever you learn this session automatically.
 
+## 0. Start in plan mode
+
+Call `EnterPlanMode` before doing anything else in this skill. Do steps 1-2 and the scoping part of step 4 (research: reading the issue, checking the dependency chain, deciding ambiguous points) while in plan mode, then present the resulting plan — which issue, base branch, the concrete changes, and how any ambiguous points were resolved — via `ExitPlanMode` for the user's approval. Only start branching/implementing (step 3 onward) after that approval.
+
 ## 1. Pick the issue
 
 If a number or URL was given, use it directly. Otherwise:
@@ -69,14 +73,14 @@ git commit -F <scratch-file>
 git push -u origin issue-<n>-<short-slug>
 gh pr create --title "feat: <summary> (#<n>)" --body-file <scratch-file> --base main --head issue-<n>-<short-slug>
 ```
-PR body style: Summary bullets mirroring the issue's deliverables, a Verification section (what you actually ran/built/launched, and anything you *couldn't* verify — e.g. no GUI automation available — say so plainly rather than implying it was click-tested), and a Known limitations section for anything explicitly out of scope. Use `--body-file`, not an inline `--body` string, for the same shell-escaping reason as step 7.
+PR body style: Summary bullets mirroring the issue's deliverables, a Verification section (what you actually ran/built/launched, and anything you *couldn't* verify — e.g. no GUI automation available — say so plainly rather than implying it was click-tested), and a Known limitations section for anything explicitly out of scope. **Include a `Closes #<n>` line** (GitHub's linking keyword — `Fixes`/`Resolves` also work) so the issue auto-closes when the PR merges to `main`. Use `--body-file`, not an inline `--body` string, for the same shell-escaping reason as step 7.
 
 ## 9. Comment on the issue with the PR link
 
 ```
 gh issue comment <n> --body-file <scratch-file>
 ```
-Summarize what shipped (not a re-explanation of the issue body) and link the PR. **Do not close or merge the PR, and do not close the issue** — that's the user's call to make after reviewing.
+Summarize what shipped (not a re-explanation of the issue body) and link the PR (the `Closes #<n>` in the PR body already wires up auto-close — the comment is for a human-readable summary, not a substitute for that link). **Do not close or merge the PR, and do not close the issue** — that's the user's call to make after reviewing.
 
 ## 10. Report and continue
 

@@ -70,10 +70,14 @@ pub fn launch(app: AppHandle) {
         }
     };
 
-    let spawned = sidecar_command
+    let mut sidecar_command = sidecar_command
         .args(["--port", &port.to_string(), "--auth-token", &token])
-        .env("KOTOBA_WHISPER_BIN", &whisper_cli)
-        .spawn();
+        .env("KOTOBA_WHISPER_BIN", &whisper_cli);
+    if let Some(backend_path) = ggml_backend_path(&whisper_cli) {
+        sidecar_command = sidecar_command.env("GGML_BACKEND_PATH", backend_path);
+    }
+
+    let spawned = sidecar_command.spawn();
 
     let (rx, child) = match spawned {
         Ok(pair) => pair,
@@ -315,6 +319,50 @@ fn whisper_cli_path() -> PathBuf {
         .parent()
         .expect("executable path has no parent directory")
         .join("whisper-cli")
+}
+
+/// ggml's CPU compute backend is itself a plugin (`libggml-cpu-<variant>.so`,
+/// one of `apple_m1`/`apple_m2_m3`/`apple_m4`) that ggml otherwise dlopens
+/// from a hardcoded Homebrew path baked in at build time — a second,
+/// separate portability gap from the load-time dylibs fixed in #48,
+/// confirmed by sandboxing off Homebrew's ggml install and watching it still
+/// try (and fail) that absolute path regardless of `GGML_BACKEND_PATH`.
+/// `prepare_sidecars.sh` vendors all three CPU variants (plus BLAS/Metal)
+/// alongside whisper-cli since it can't know which one the machine that
+/// eventually *runs* the packaged app will need; `GGML_BACKEND_PATH` only
+/// accepts a single file, so we resolve the right one here, at launch, on
+/// whatever machine is actually running right now.
+fn ggml_backend_path(whisper_cli: &std::path::Path) -> Option<PathBuf> {
+    let output = std::process::Command::new("sysctl")
+        .args(["-n", "machdep.cpu.brand_string"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let brand = String::from_utf8_lossy(&output.stdout);
+    let brand = brand.trim();
+
+    let variant = if brand.contains("M1") {
+        "apple_m1"
+    } else if brand.contains("M2") || brand.contains("M3") {
+        "apple_m2_m3"
+    } else if brand.contains("M4") {
+        "apple_m4"
+    } else {
+        log::warn!(
+            "unrecognized Apple Silicon model '{brand}' — falling back to Homebrew's own ggml backend discovery"
+        );
+        return None;
+    };
+
+    Some(
+        whisper_cli
+            .parent()
+            .expect("whisper-cli path has no parent directory")
+            .join("libs")
+            .join(format!("libggml-cpu-{variant}.so")),
+    )
 }
 
 fn http_get(port: u16, path: &str, token: &str, timeout: Duration) -> std::io::Result<(u16, Vec<u8>)> {
