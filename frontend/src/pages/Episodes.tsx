@@ -217,6 +217,18 @@ export function Episodes() {
                     {ep.transcript_source_url && <span style={transcriptBadgeStyle}>Transcript</span>}
                   </div>
                 </div>
+                {ep.download_status === 'downloaded' && (
+                  <button
+                    onClick={() => navigate(`/library/podcasts/${id}/episodes/${ep.id}/player`, { state: { podcast, episode: ep } })}
+                    style={shadowBtnStyle}
+                    title="Shadow this episode"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M6 4l10 6-10 6V4z" />
+                    </svg>
+                    Shadow
+                  </button>
+                )}
                 <DownloadButton episode={ep} onDownload={() => startDownload(ep)} onRemove={() => removeDownload(ep)} />
               </div>
             ))}
@@ -281,3 +293,4 @@ const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', g
 const transcriptBadgeStyle: React.CSSProperties = { font: '500 9.5px/1 IBM Plex Mono', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.12)', padding: '2px 6px', borderRadius: 5 };
 const downloadBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.6)' };
 const downloadBtnDoneStyle: React.CSSProperties = { background: 'oklch(0.6 0.06 155 / 0.14)', borderColor: 'oklch(0.6 0.06 155 / 0.4)' };
+const shadowBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 14px', borderRadius: 17, border: '1px solid rgba(32,30,26,.14)', background: '#211f1b', color: '#fff', font: '600 12px/1 IBM Plex Sans', cursor: 'pointer', flex: 'none' };

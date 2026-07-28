@@ -54,3 +54,27 @@ export interface EpisodeStatus {
   download_status: DownloadStatus;
   transcript_status: TranscriptStatus;
 }
+
+export type TranscriptSource = 'published' | 'asr';
+
+export interface Segment {
+  base: string;
+  reading: string;
+}
+
+export interface Sentence {
+  index: number;
+  start_time: number;
+  end_time: number;
+  text: string;
+  segments: Segment[];
+}
+
+export interface Transcript {
+  id: number;
+  episode_id: number;
+  language: string;
+  source: TranscriptSource;
+  created_at: string;
+  sentences: Sentence[];
+}

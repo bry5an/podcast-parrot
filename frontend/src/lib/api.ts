@@ -6,6 +6,7 @@ import type {
   Podcast,
   Profile,
   ProfileCreate,
+  Transcript,
 } from './types';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -70,4 +71,6 @@ export const api = {
   deleteDownload: (episodeId: number) =>
     request<void>(`/api/episodes/${episodeId}/download`, { method: 'DELETE' }),
   getEpisodeStatus: (episodeId: number) => request<EpisodeStatus>(`/api/episodes/${episodeId}/status`),
+  getTranscript: (episodeId: number) => request<Transcript>(`/api/episodes/${episodeId}/transcript`),
+  audioUrl: (episodeId: number) => `/api/episodes/${episodeId}/audio`,
 };
