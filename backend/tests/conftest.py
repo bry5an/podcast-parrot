@@ -1,3 +1,11 @@
+import os
+import tempfile
+
+# Must run before any `app.*` import: app.db and app.services.downloads resolve
+# their writable paths at import time, and we never want a test run touching the
+# real ~/Library/Application Support/Kotoba directory.
+os.environ["KOTOBA_DATA_DIR"] = tempfile.mkdtemp(prefix="kotoba-test-")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
