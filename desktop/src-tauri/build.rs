@@ -51,11 +51,22 @@ fn copy_dir_recursive(src: &Path, dest: &Path) {
     for entry in fs::read_dir(src).expect("failed to read _internal source directory") {
         let entry = entry.expect("failed to read _internal directory entry");
         let dest_path = dest.join(entry.file_name());
-        let file_type = entry.file_type().expect("failed to read entry file type");
-        if file_type.is_dir() {
+        // `DirEntry::file_type()` doesn't follow symlinks, so it reports a
+        // symlinked directory as neither dir nor file — some PyInstaller
+        // hidden-import wheels (e.g. fugashi's vendored `.dylibs`) can bundle
+        // one, and falling into the `fs::copy` branch below then panics with
+        // "the source path is neither a regular file nor a symlink to a
+        // regular file" (reproduced and confirmed by this exact message from
+        // a from-scratch macOS CI build). `fs::metadata` follows symlinks, so
+        // it correctly recurses into a symlinked directory instead.
+        let is_dir = fs::metadata(entry.path())
+            .unwrap_or_else(|err| panic!("failed to stat {}: {err}", entry.path().display()))
+            .is_dir();
+        if is_dir {
             copy_dir_recursive(&entry.path(), &dest_path);
         } else {
-            fs::copy(entry.path(), &dest_path).expect("failed to copy _internal file");
+            fs::copy(entry.path(), &dest_path)
+                .unwrap_or_else(|err| panic!("failed to copy {}: {err}", entry.path().display()));
         }
     }
 }
