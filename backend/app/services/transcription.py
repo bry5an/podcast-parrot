@@ -1,31 +1,61 @@
+import json
 import os
 import re
-from typing import TYPE_CHECKING
+import shutil
+import subprocess
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 
+from app import paths
 from app.services.transcript_parsers import Cue
 
-if TYPE_CHECKING:
-    from faster_whisper.transcribe import Segment
-
-WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "small")
-WHISPER_DEVICE = os.environ.get("WHISPER_DEVICE", "cpu")
-WHISPER_COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "int8")
-
 _SENTENCE_TERMINATOR_RE = re.compile(r"[。！？.!?]")
+_SPECIAL_TOKEN_RE = re.compile(r"^\[_.+\]$")
 
-_model = None
-
-
-def _get_model():
-    global _model
-    if _model is None:
-        from faster_whisper import WhisperModel
-
-        _model = WhisperModel(WHISPER_MODEL_SIZE, device=WHISPER_DEVICE, compute_type=WHISPER_COMPUTE_TYPE)
-    return _model
+_AFCONVERT_BIN = "/usr/bin/afconvert"
+_DEFAULT_MODEL_FILENAME = "ggml-base.bin"
+_VAD_MODEL_PATH = paths.resource_dir() / "backend" / "app" / "ggml-silero-v5.1.2.bin"
 
 
-def _segment_to_cues(segment: "Segment") -> list[Cue]:
+class TranscriptionError(Exception):
+    """Base class for ASR failures, distinct from unrelated exceptions."""
+
+
+class WhisperModelNotFoundError(TranscriptionError):
+    """Raised when the configured whisper.cpp model file does not exist on disk."""
+
+
+@dataclass
+class _Word:
+    word: str
+    start: float
+    end: float
+
+
+@dataclass
+class _Segment:
+    start: float
+    end: float
+    text: str
+    words: list[_Word]
+
+
+def _whisper_cli_path() -> Path:
+    override = os.environ.get("KOTOBA_WHISPER_BIN")
+    if override:
+        return Path(override).expanduser().resolve()
+    return paths.resource_dir() / "backend" / "bin" / "whisper-cli"
+
+
+def _model_path() -> Path:
+    override = os.environ.get("KOTOBA_WHISPER_MODEL")
+    if override:
+        return Path(override).expanduser().resolve()
+    return paths.models_dir() / _DEFAULT_MODEL_FILENAME
+
+
+def _segment_to_cues(segment: "_Segment") -> list[Cue]:
     text = segment.text.strip()
     if not text:
         return []
@@ -53,19 +83,89 @@ def _segment_to_cues(segment: "Segment") -> list[Cue]:
     return cues if cues else [Cue(segment.start, segment.end, text)]
 
 
+def _decode_to_wav(audio_path: str, wav_path: str) -> None:
+    result = subprocess.run(
+        [_AFCONVERT_BIN, "-f", "WAVE", "-d", "LEI16@16000", "-c", "1", audio_path, wav_path],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise TranscriptionError(f"afconvert failed ({result.returncode}): {result.stderr.strip()}")
+
+
+def _run_whisper_cli(wav_path: str, language: str | None, output_prefix: str) -> None:
+    model_path = _model_path()
+    if not model_path.is_file():
+        raise WhisperModelNotFoundError(f"whisper.cpp model not found at {model_path}")
+
+    command = [
+        str(_whisper_cli_path()),
+        "-m",
+        str(model_path),
+        "-f",
+        wav_path,
+        "-l",
+        language or "auto",
+        "--vad",
+        "-vm",
+        str(_VAD_MODEL_PATH),
+        "-oj",
+        "-ojf",
+        "-of",
+        output_prefix,
+        "-np",
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise TranscriptionError(f"whisper-cli failed ({result.returncode}): {result.stderr.strip()}")
+
+
+def _parse_whisper_json(json_path: str) -> tuple[list[_Segment], str]:
+    with open(json_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    language = data.get("result", {}).get("language", "")
+
+    segments = []
+    for item in data.get("transcription", []):
+        words = []
+        for token in item.get("tokens", []):
+            token_text = token["text"]
+            if _SPECIAL_TOKEN_RE.match(token_text.strip()):
+                continue
+            words.append(
+                _Word(
+                    word=token_text,
+                    start=token["offsets"]["from"] / 1000.0,
+                    end=token["offsets"]["to"] / 1000.0,
+                )
+            )
+        segments.append(
+            _Segment(
+                start=item["offsets"]["from"] / 1000.0,
+                end=item["offsets"]["to"] / 1000.0,
+                text=item["text"],
+                words=words,
+            )
+        )
+    return segments, language
+
+
 def transcribe_audio(audio_path: str, language: str | None = None) -> tuple[list[Cue], str]:
-    """Run faster-whisper over a local audio file, returning ordered Cues
+    """Run whisper.cpp over a local audio file, returning ordered Cues
     (segment-level, split further on sentence-ending punctuation using
     word-level timestamps) plus the detected/used language code."""
-    model = _get_model()
-    segments, info = model.transcribe(
-        audio_path,
-        language=language,
-        word_timestamps=True,
-        vad_filter=True,
-    )
+    tmp_dir = tempfile.mkdtemp(prefix="kotoba-asr-")
+    wav_path = os.path.join(tmp_dir, "audio.wav")
+    output_prefix = os.path.join(tmp_dir, "result")
+    try:
+        _decode_to_wav(audio_path, wav_path)
+        _run_whisper_cli(wav_path, language, output_prefix)
+        segments, detected_language = _parse_whisper_json(output_prefix + ".json")
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     cues = []
     for segment in segments:
         cues.extend(_segment_to_cues(segment))
-    return cues, info.language
+    return cues, detected_language
