@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Episodes } from './Episodes';
 import { ProfileProvider } from '../state/ProfileContext';
@@ -36,12 +36,19 @@ function makeEpisode(overrides: Partial<Episode>): Episode {
   };
 }
 
+function PlayerLocationProbe() {
+  const location = useLocation();
+  const state = location.state as { autoplay?: boolean } | null;
+  return <div data-testid="player-probe">{String(state?.autoplay)}</div>;
+}
+
 function renderEpisodes() {
   return render(
     <MemoryRouter initialEntries={['/library/podcasts/1/episodes']}>
       <ProfileProvider>
         <Routes>
           <Route path="/library/podcasts/:podcastId/episodes" element={<Episodes />} />
+          <Route path="/library/podcasts/:podcastId/episodes/:episodeId/player" element={<PlayerLocationProbe />} />
         </Routes>
       </ProfileProvider>
     </MemoryRouter>,
@@ -98,6 +105,18 @@ describe('Episodes', () => {
 
     expect(screen.getByRole('button', { name: /Shadow/ })).toBeInTheDocument();
     expect(screen.queryByTestId('progress-2')).not.toBeInTheDocument();
+  });
+
+  it('navigates to the player with an autoplay flag when the Shadow button is clicked', async () => {
+    vi.mocked(api.listEpisodes).mockResolvedValue([
+      makeEpisode({ id: 1, title: 'Fresh episode', download_status: 'downloaded' }),
+    ]);
+    renderEpisodes();
+
+    await screen.findByText('Fresh episode');
+    await userEvent.click(screen.getByRole('button', { name: /Shadow/ }));
+
+    expect(await screen.findByTestId('player-probe')).toHaveTextContent('true');
   });
 
   it('shows a queued badge for an episode waiting on an ASR model', async () => {

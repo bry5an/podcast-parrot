@@ -273,7 +273,11 @@ export function Episodes() {
                   </div>
                   {ep.download_status === 'downloaded' && (
                     <button
-                      onClick={() => navigate(`/library/podcasts/${id}/episodes/${ep.id}/player`, { state: { podcast, episode: ep } })}
+                      onClick={() =>
+                        navigate(`/library/podcasts/${id}/episodes/${ep.id}/player`, {
+                          state: { podcast, episode: ep, autoplay: true },
+                        })
+                      }
                       style={shadowBtnStyle}
                       title={inProgress ? 'Continue shadowing this episode' : 'Shadow this episode'}
                     >
