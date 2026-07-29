@@ -7,6 +7,7 @@ from sqlmodel import Session, SQLModel, select
 
 from app.db import get_session
 from app.models import DownloadStatus, Episode, PlaybackState, Podcast, Sentence, TranscriptSource, TranscriptStatus
+from app.services import transcription
 from app.services.downloads import STORAGE_DIR, download_episode_audio, retry_transcription
 from app.services.episodes import sync_episodes
 from app.services.transcripts import get_or_build_transcript
@@ -55,6 +56,10 @@ class EpisodeStatusRead(SQLModel):
     id: int
     download_status: DownloadStatus
     transcript_status: TranscriptStatus
+    # Only populated while transcript_status is pending; whisper-cli progress
+    # is in-memory only (see app.services.transcription), so it's None on a
+    # fresh backend process, a terminal status, or before ASR has started.
+    progress: int | None = None
 
 
 VALID_FILTERS = {"all", "unplayed", "downloaded"}
@@ -175,7 +180,13 @@ def get_status(episode_id: int, session: Session = Depends(get_session)):
     episode = session.get(Episode, episode_id)
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
-    return episode
+    progress = transcription.get_progress(episode_id) if episode.transcript_status == TranscriptStatus.pending else None
+    return EpisodeStatusRead(
+        id=episode.id,
+        download_status=episode.download_status,
+        transcript_status=episode.transcript_status,
+        progress=progress,
+    )
 
 
 @router.get("/episodes/{episode_id}/transcript", response_model=TranscriptRead)

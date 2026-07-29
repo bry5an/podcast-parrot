@@ -6,6 +6,7 @@ import { useToast } from './ToastContext';
 
 interface TranscriptionContextValue {
   statuses: Record<number, TranscriptStatus>;
+  progress: Record<number, number | null>;
   track: (episodeId: number, title: string) => void;
   untrack: (episodeId: number) => void;
 }
@@ -18,6 +19,7 @@ const MAX_CONSECUTIVE_ERRORS = 5;
 export function TranscriptionProvider({ children }: { children: ReactNode }) {
   const { showToast } = useToast();
   const [statuses, setStatuses] = useState<Record<number, TranscriptStatus>>({});
+  const [progress, setProgress] = useState<Record<number, number | null>>({});
   const timers = useRef<Record<number, number>>({});
 
   useEffect(() => {
@@ -41,6 +43,12 @@ export function TranscriptionProvider({ children }: { children: ReactNode }) {
         delete next[episodeId];
         return next;
       });
+      setProgress((prev) => {
+        if (!(episodeId in prev)) return prev;
+        const next = { ...prev };
+        delete next[episodeId];
+        return next;
+      });
     },
     [clearTimer],
   );
@@ -49,6 +57,7 @@ export function TranscriptionProvider({ children }: { children: ReactNode }) {
     (episodeId: number, title: string) => {
       if (timers.current[episodeId]) return;
       setStatuses((prev) => ({ ...prev, [episodeId]: 'pending' }));
+      setProgress((prev) => ({ ...prev, [episodeId]: null }));
 
       let consecutiveErrors = 0;
       const timer = window.setInterval(async () => {
@@ -60,6 +69,11 @@ export function TranscriptionProvider({ children }: { children: ReactNode }) {
             // Keep the terminal status in place (rather than clearing it) so the
             // page can render the right badge/button without an extra refetch.
             setStatuses((prev) => ({ ...prev, [episodeId]: status.transcript_status }));
+            setProgress((prev) => {
+              const next = { ...prev };
+              delete next[episodeId];
+              return next;
+            });
             if (status.transcript_status === 'failed') {
               showToast(`Transcription failed: ${title}`, 'error');
             } else if (status.transcript_status === 'canceled') {
@@ -69,12 +83,18 @@ export function TranscriptionProvider({ children }: { children: ReactNode }) {
             }
           } else {
             setStatuses((prev) => ({ ...prev, [episodeId]: 'pending' }));
+            setProgress((prev) => ({ ...prev, [episodeId]: status.progress ?? null }));
           }
         } catch {
           consecutiveErrors += 1;
           if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
             clearTimer(episodeId);
             setStatuses((prev) => ({ ...prev, [episodeId]: 'failed' }));
+            setProgress((prev) => {
+              const next = { ...prev };
+              delete next[episodeId];
+              return next;
+            });
             showToast(`Transcription failed: ${title}`, 'error');
           }
         }
@@ -85,7 +105,9 @@ export function TranscriptionProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <TranscriptionContext.Provider value={{ statuses, track, untrack }}>{children}</TranscriptionContext.Provider>
+    <TranscriptionContext.Provider value={{ statuses, progress, track, untrack }}>
+      {children}
+    </TranscriptionContext.Provider>
   );
 }
 

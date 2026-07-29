@@ -3,6 +3,7 @@ from pathlib import Path
 from sqlmodel import select
 
 from app.models import Episode, Podcast, Sentence, Transcript, TranscriptSource, TranscriptStatus
+from app.services import transcription
 from app.services.transcript_parsers import Cue
 from app.services.transcription import WhisperModelNotFoundError
 from app.services.transcripts import ingest_transcript
@@ -136,3 +137,36 @@ def test_ingest_transcript_no_audio_path_leaves_status_none(session):
 
     session.refresh(episode)
     assert episode.transcript_status == TranscriptStatus.none
+
+
+# --- ASR progress cleanup (#69) ------------------------------------------
+
+
+def test_progress_cleared_after_successful_asr(session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast)
+
+    def fake_transcribe_audio(*args, episode_id=None, **kwargs):
+        transcription._set_progress(episode_id, 50)
+        return [Cue(0.0, 1.0, "こんにちは。")], "ja"
+
+    monkeypatch.setattr("app.services.transcripts.transcribe_audio", fake_transcribe_audio)
+
+    ingest_transcript(session, episode, audio_path=Path("/fake/audio.mp3"))
+
+    assert transcription.get_progress(episode.id) is None
+
+
+def test_progress_cleared_after_failed_asr(session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast, transcript_status=TranscriptStatus.none)
+
+    def fake_transcribe_audio(*args, episode_id=None, **kwargs):
+        transcription._set_progress(episode_id, 50)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("app.services.transcripts.transcribe_audio", fake_transcribe_audio)
+
+    ingest_transcript(session, episode, audio_path=Path("/fake/audio.mp3"))
+
+    assert transcription.get_progress(episode.id) is None

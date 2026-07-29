@@ -144,7 +144,12 @@ describe('Episodes', () => {
       makeEpisode({ id: 1, title: 'Untranscribed episode', download_status: 'downloaded', transcript_status: 'none' }),
       makeEpisode({ id: 2, title: 'Transcribed episode', download_status: 'downloaded', transcript_status: 'full' }),
     ]);
-    vi.mocked(api.transcribeEpisode).mockResolvedValue({ id: 1, download_status: 'downloaded', transcript_status: 'pending' });
+    vi.mocked(api.transcribeEpisode).mockResolvedValue({
+      id: 1,
+      download_status: 'downloaded',
+      transcript_status: 'pending',
+      progress: null,
+    });
 
     renderEpisodes();
 
@@ -155,6 +160,23 @@ describe('Episodes', () => {
     await userEvent.click(transcribeButton);
 
     expect(api.transcribeEpisode).toHaveBeenCalledWith(1);
+  });
+
+  it('shows a transcribing progress bar and percentage badge while pending, with no Transcribe button', async () => {
+    vi.mocked(api.listEpisodes).mockResolvedValue([
+      makeEpisode({
+        id: 1,
+        title: 'Mid-transcription episode',
+        download_status: 'downloaded',
+        transcript_status: 'pending',
+      }),
+    ]);
+    renderEpisodes();
+
+    await screen.findByText('Mid-transcription episode');
+    expect(screen.getByTestId('transcribe-progress-1')).toBeInTheDocument();
+    expect(screen.getByText('Transcribing…')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Transcribe|Retry transcription/ })).not.toBeInTheDocument();
   });
 
   it('labels the Transcribe button as a retry when the episode is queued', async () => {
@@ -181,7 +203,12 @@ describe('Episodes', () => {
     vi.mocked(api.listEpisodes).mockResolvedValue([
       makeEpisode({ id: 1, title: 'Untranscribed episode', download_status: 'downloaded', transcript_status: 'none' }),
     ]);
-    vi.mocked(api.transcribeEpisode).mockResolvedValue({ id: 1, download_status: 'downloaded', transcript_status: 'pending' });
+    vi.mocked(api.transcribeEpisode).mockResolvedValue({
+      id: 1,
+      download_status: 'downloaded',
+      transcript_status: 'pending',
+      progress: null,
+    });
     vi.mocked(api.getEpisodeStatus).mockRejectedValue(new Error('network error'));
 
     // Only setInterval/clearInterval are faked (left active through the click below),
@@ -212,8 +239,18 @@ describe('Episodes', () => {
     vi.mocked(api.listEpisodes).mockResolvedValue([
       makeEpisode({ id: 1, title: 'Untranscribed episode', download_status: 'downloaded', transcript_status: 'none' }),
     ]);
-    vi.mocked(api.transcribeEpisode).mockResolvedValue({ id: 1, download_status: 'downloaded', transcript_status: 'pending' });
-    vi.mocked(api.getEpisodeStatus).mockResolvedValue({ id: 1, download_status: 'downloaded', transcript_status: 'full' });
+    vi.mocked(api.transcribeEpisode).mockResolvedValue({
+      id: 1,
+      download_status: 'downloaded',
+      transcript_status: 'pending',
+      progress: null,
+    });
+    vi.mocked(api.getEpisodeStatus).mockResolvedValue({
+      id: 1,
+      download_status: 'downloaded',
+      transcript_status: 'full',
+      progress: null,
+    });
 
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     try {

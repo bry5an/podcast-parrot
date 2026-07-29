@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from app.services.transcript_parsers import Cue
 
 _SENTENCE_TERMINATOR_RE = re.compile(r"[。！？.!?]")
 _SPECIAL_TOKEN_RE = re.compile(r"^\[_.+\]$")
+_PROGRESS_RE = re.compile(r"progress\s*=\s*(\d+)%")
 
 _AFCONVERT_BIN = "/usr/bin/afconvert"
 _VAD_MODEL_PATH = paths.resource_dir() / "backend" / "app" / "ggml-silero-v5.1.2.bin"
@@ -33,6 +35,23 @@ class TranscriptionError(Exception):
 
 class WhisperModelNotFoundError(TranscriptionError):
     """Raised when the configured whisper.cpp model file does not exist on disk."""
+
+
+# In-memory ASR progress, mirroring whisper_models._progress: keyed by
+# episode_id, updated from whisper-cli's "-pp" stderr lines as inference runs.
+_progress: dict[int, int] = {}
+
+
+def get_progress(episode_id: int) -> int | None:
+    return _progress.get(episode_id)
+
+
+def _set_progress(episode_id: int, percent: int) -> None:
+    _progress[episode_id] = percent
+
+
+def clear_progress(episode_id: int) -> None:
+    _progress.pop(episode_id, None)
 
 
 @dataclass
@@ -110,7 +129,7 @@ def _decode_to_wav(audio_path: str, wav_path: str) -> None:
         raise TranscriptionError(f"afconvert failed ({result.returncode}): {result.stderr.strip()}")
 
 
-def _run_whisper_cli(wav_path: str, language: str | None, output_prefix: str) -> None:
+def _run_whisper_cli(wav_path: str, language: str | None, output_prefix: str, episode_id: int | None) -> None:
     model_path = _model_path()
     if not model_path.is_file():
         raise WhisperModelNotFoundError(f"whisper.cpp model not found at {model_path}")
@@ -131,21 +150,42 @@ def _run_whisper_cli(wav_path: str, language: str | None, output_prefix: str) ->
         "-of",
         output_prefix,
         "-np",
+        "-pp",
     ]
+
+    # Popen + a background stderr reader (rather than subprocess.run) so
+    # "-pp"'s incremental "progress = NN%" lines can update _progress as the
+    # model runs, instead of only becoming available after the process exits.
+    # The #57 timeout guarantee is preserved: proc.wait(timeout=...) below
+    # still bounds the call regardless of what the reader thread is doing.
+    proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    stderr_lines: list[str] = []
+
+    def _read_stderr() -> None:
+        assert proc.stderr is not None
+        for line in proc.stderr:
+            stderr_lines.append(line)
+            match = _PROGRESS_RE.search(line)
+            if match and episode_id is not None:
+                _set_progress(episode_id, int(match.group(1)))
+
+    reader = threading.Thread(target=_read_stderr, daemon=True)
+    reader.start()
+
     try:
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=_WHISPER_CLI_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired as exc:
-        stderr = (exc.stderr or "").strip()
+        proc.wait(timeout=_WHISPER_CLI_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        reader.join(timeout=5)
+        stderr = "".join(stderr_lines).strip()
         raise TranscriptionError(
             f"whisper-cli timed out after {_WHISPER_CLI_TIMEOUT_SECONDS}s" + (f": {stderr}" if stderr else "")
         ) from None
-    if result.returncode != 0:
-        raise TranscriptionError(f"whisper-cli failed ({result.returncode}): {result.stderr.strip()}")
+
+    reader.join(timeout=5)
+    if proc.returncode != 0:
+        raise TranscriptionError(f"whisper-cli failed ({proc.returncode}): {''.join(stderr_lines).strip()}")
 
 
 def _parse_whisper_json(json_path: str) -> tuple[list[_Segment], str]:
@@ -179,16 +219,20 @@ def _parse_whisper_json(json_path: str) -> tuple[list[_Segment], str]:
     return segments, language
 
 
-def transcribe_audio(audio_path: str, language: str | None = None) -> tuple[list[Cue], str]:
+def transcribe_audio(
+    audio_path: str, language: str | None = None, episode_id: int | None = None
+) -> tuple[list[Cue], str]:
     """Run whisper.cpp over a local audio file, returning ordered Cues
     (segment-level, split further on sentence-ending punctuation using
     word-level timestamps) plus the detected/used language code."""
+    if episode_id is not None:
+        _set_progress(episode_id, 0)
     tmp_dir = tempfile.mkdtemp(prefix="kotoba-asr-")
     wav_path = os.path.join(tmp_dir, "audio.wav")
     output_prefix = os.path.join(tmp_dir, "result")
     try:
         _decode_to_wav(audio_path, wav_path)
-        _run_whisper_cli(wav_path, language, output_prefix)
+        _run_whisper_cli(wav_path, language, output_prefix, episode_id)
         segments, detected_language = _parse_whisper_json(output_prefix + ".json")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)

@@ -8,12 +8,13 @@ import type { EpisodeStatus } from '../lib/types';
 vi.mock('../lib/api');
 
 function Probe({ episodeId, title }: { episodeId: number; title: string }) {
-  const { statuses, track, untrack } = useTranscriptions();
+  const { statuses, progress, track, untrack } = useTranscriptions();
   return (
     <div>
       <button onClick={() => track(episodeId, title)}>track</button>
       <button onClick={() => untrack(episodeId)}>untrack</button>
       <div data-testid="status">{statuses[episodeId] ?? 'untracked'}</div>
+      <div data-testid="progress">{progress[episodeId] != null ? progress[episodeId] : 'none'}</div>
     </div>
   );
 }
@@ -43,6 +44,7 @@ describe('TranscriptionContext', () => {
       id: 1,
       download_status: 'downloaded',
       transcript_status: 'full',
+      progress: null,
     } satisfies EpisodeStatus);
 
     renderProbe(1, 'My Episode');
@@ -64,11 +66,42 @@ describe('TranscriptionContext', () => {
     expect(vi.mocked(api.getEpisodeStatus).mock.calls.length).toBe(callsAfterCompletion);
   });
 
+  it('exposes progress from a pending poll tick and clears it once transcription completes', async () => {
+    vi.mocked(api.getEpisodeStatus)
+      .mockResolvedValueOnce({
+        id: 1,
+        download_status: 'downloaded',
+        transcript_status: 'pending',
+        progress: 42,
+      } satisfies EpisodeStatus)
+      .mockResolvedValueOnce({
+        id: 1,
+        download_status: 'downloaded',
+        transcript_status: 'full',
+        progress: null,
+      } satisfies EpisodeStatus);
+
+    renderProbe(1, 'My Episode');
+    fireEvent.click(screen.getByText('track'));
+    expect(screen.getByTestId('progress')).toHaveTextContent('none');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+    expect(screen.getByTestId('progress')).toHaveTextContent('42');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+    expect(screen.getByTestId('progress')).toHaveTextContent('none');
+  });
+
   it('fires an error toast when the server reports a failed transcription', async () => {
     vi.mocked(api.getEpisodeStatus).mockResolvedValue({
       id: 1,
       download_status: 'downloaded',
       transcript_status: 'failed',
+      progress: null,
     } satisfies EpisodeStatus);
 
     renderProbe(1, 'My Episode');
@@ -109,6 +142,7 @@ describe('TranscriptionContext', () => {
       id: 1,
       download_status: 'idle',
       transcript_status: 'canceled',
+      progress: null,
     } satisfies EpisodeStatus);
 
     renderProbe(1, 'My Episode');
@@ -123,19 +157,26 @@ describe('TranscriptionContext', () => {
     expect(screen.queryByText('Transcription complete: My Episode')).not.toBeInTheDocument();
   });
 
-  it('untrack stops polling and clears the tracked status', async () => {
+  it('untrack stops polling and clears the tracked status and progress', async () => {
     vi.mocked(api.getEpisodeStatus).mockResolvedValue({
       id: 1,
       download_status: 'downloaded',
       transcript_status: 'pending',
+      progress: 35,
     } satisfies EpisodeStatus);
 
     renderProbe(1, 'My Episode');
     fireEvent.click(screen.getByText('track'));
     expect(screen.getByTestId('status')).toHaveTextContent('pending');
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+    expect(screen.getByTestId('progress')).toHaveTextContent('35');
+
     fireEvent.click(screen.getByText('untrack'));
     expect(screen.getByTestId('status')).toHaveTextContent('untracked');
+    expect(screen.getByTestId('progress')).toHaveTextContent('none');
 
     const callsAtUntrack = vi.mocked(api.getEpisodeStatus).mock.calls.length;
     await act(async () => {
@@ -149,6 +190,7 @@ describe('TranscriptionContext', () => {
       id: 1,
       download_status: 'downloaded',
       transcript_status: 'pending',
+      progress: null,
     } satisfies EpisodeStatus);
 
     renderProbe(1, 'My Episode');
