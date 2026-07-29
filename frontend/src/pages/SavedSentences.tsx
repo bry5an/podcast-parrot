@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { Ruby } from '../components/Ruby';
+import { findActiveIndex } from '../lib/transcriptSync';
 import { useProfiles } from '../state/ProfileContext';
 import { useToast } from '../state/ToastContext';
-import type { SavedSentence } from '../lib/types';
+import type { SavedSentence, Sentence } from '../lib/types';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -19,9 +21,11 @@ export function SavedSentences() {
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [currentTime, setCurrentTime] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeClipRef = useRef<SavedSentence | null>(null);
+  const showFurigana = currentProfile?.show_furigana ?? true;
 
   const refresh = useCallback(() => {
     if (!currentProfile) return;
@@ -47,6 +51,13 @@ export function SavedSentences() {
     activeClipRef.current = clip;
     audio.src = api.audioUrl(clip.episode_id);
     setPlayingId(clip.id);
+  };
+
+  const seekToSentence = (clip: SavedSentence, sentence: Sentence) => {
+    const audio = audioRef.current;
+    if (!audio || playingId !== clip.id) return;
+    audio.currentTime = sentence.start_time;
+    setCurrentTime(sentence.start_time);
   };
 
   const startRename = (clip: SavedSentence) => {
@@ -147,9 +158,28 @@ export function SavedSentences() {
               >
                 {clip.podcast_title} · {clip.episode_title}
               </div>
-              <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgba(32,30,26,.7)', marginTop: 6 }}>
-                {clip.text}
-              </div>
+              {playingId === clip.id ? (
+                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {(() => {
+                    const activeIdx = findActiveIndex(clip.sentences, currentTime);
+                    return clip.sentences.map((s, i) => (
+                      <div
+                        key={s.id}
+                        onClick={() => seekToSentence(clip, s)}
+                        data-testid={`clip-sentence-${clip.id}-${s.index}`}
+                        data-active={i === activeIdx}
+                        style={{ ...clipSentenceRowStyle, ...(i === activeIdx ? clipSentenceRowActiveStyle : {}) }}
+                      >
+                        <Ruby segments={s.segments} showFurigana={showFurigana} />
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgba(32,30,26,.7)', marginTop: 6 }}>
+                  {clip.text}
+                </div>
+              )}
               <div style={{ font: '400 10.5px/1 IBM Plex Mono', color: 'rgba(32,30,26,.4)', marginTop: 8 }}>
                 Saved {formatDate(clip.created_at)}
               </div>
@@ -182,11 +212,15 @@ export function SavedSentences() {
         data-testid="saved-sentence-audio"
         onLoadedMetadata={(e) => {
           const clip = activeClipRef.current;
-          if (clip) e.currentTarget.currentTime = clip.start_time;
+          if (clip) {
+            e.currentTarget.currentTime = clip.start_time;
+            setCurrentTime(clip.start_time);
+          }
           e.currentTarget.play();
         }}
         onTimeUpdate={(e) => {
           const clip = activeClipRef.current;
+          setCurrentTime(e.currentTarget.currentTime);
           if (clip && e.currentTarget.currentTime >= clip.end_time) {
             e.currentTarget.pause();
             setPlayingId(null);
@@ -203,3 +237,5 @@ const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-start
 const playBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: 'none', background: '#211f1b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
 const deleteBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.12)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.5)' };
 const nameInputStyle: React.CSSProperties = { width: '100%', height: 28, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(32,30,26,.2)', font: '600 14px/1 IBM Plex Sans' };
+const clipSentenceRowStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 8, cursor: 'pointer', font: '500 13px/1.7 "IBM Plex Sans", sans-serif' };
+const clipSentenceRowActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', boxShadow: 'inset 3px 0 0 oklch(0.42 0.06 195)' };

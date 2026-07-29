@@ -106,6 +106,7 @@ export interface SavedSentence {
   end_time: number;
   audio_available: boolean;
   created_at: string;
+  sentences: Sentence[];
 }
 
 export interface SavedSentenceCreate {

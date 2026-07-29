@@ -33,6 +33,10 @@ function makeClip(overrides: Partial<SavedSentence> = {}): SavedSentence {
     end_time: 2,
     audio_available: true,
     created_at: '2026-01-01T00:00:00Z',
+    sentences: [
+      { id: 101, index: 0, start_time: 0, end_time: 1, text: 'こんにちは', segments: [{ base: 'こんにちは', reading: '' }] },
+      { id: 102, index: 1, start_time: 1, end_time: 2, text: '元気ですか', segments: [{ base: '元気ですか', reading: '' }] },
+    ],
     ...overrides,
   };
 }
@@ -119,6 +123,31 @@ describe('SavedSentences', () => {
     audio.currentTime = 2;
     fireEvent.timeUpdate(audio);
     expect(pauseSpy).toHaveBeenCalled();
+  });
+
+  it('expands into a synced sentence transcript while playing and highlights the active sentence', async () => {
+    vi.mocked(api.listSavedSentences).mockResolvedValue([makeClip()]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const playBtn = await screen.findByTestId('play-saved-sentence-1');
+    await user.click(playBtn);
+
+    const audio = screen.getByTestId('saved-sentence-audio') as HTMLAudioElement;
+    Object.defineProperty(audio, 'duration', { value: 10, configurable: true });
+    vi.spyOn(audio, 'play').mockResolvedValue();
+    fireEvent.loadedMetadata(audio);
+
+    const firstRow = await screen.findByTestId('clip-sentence-1-0');
+    const secondRow = screen.getByTestId('clip-sentence-1-1');
+    expect(firstRow).toHaveAttribute('data-active', 'true');
+    expect(secondRow).toHaveAttribute('data-active', 'false');
+
+    audio.currentTime = 1.5;
+    fireEvent.timeUpdate(audio);
+
+    expect(firstRow).toHaveAttribute('data-active', 'false');
+    expect(secondRow).toHaveAttribute('data-active', 'true');
   });
 
   it('renames a clip via the inline editor', async () => {
