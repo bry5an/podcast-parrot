@@ -31,7 +31,7 @@ export interface Podcast {
 }
 
 export type DownloadStatus = 'idle' | 'downloading' | 'downloaded' | 'failed';
-export type TranscriptStatus = 'none' | 'pending' | 'queued' | 'auto' | 'full' | 'failed';
+export type TranscriptStatus = 'none' | 'pending' | 'queued' | 'auto' | 'full' | 'failed' | 'canceled';
 export type EpisodeFilter = 'all' | 'unplayed' | 'downloaded';
 export type EpisodeSort = 'newest' | 'oldest';
 

@@ -248,6 +248,41 @@ describe('Episodes', () => {
     expect(await screen.findByText('Transcription complete: Untranscribed episode')).toBeInTheDocument();
   });
 
+  it('shows a canceled toast (not a completion toast) and stops polling when a download is removed mid-transcription', async () => {
+    let removed = false;
+    vi.mocked(api.listEpisodes).mockImplementation(() =>
+      Promise.resolve([
+        makeEpisode({
+          id: 1,
+          title: 'Transcribing episode',
+          download_status: removed ? 'idle' : 'downloaded',
+          transcript_status: removed ? 'canceled' : 'pending',
+        }),
+      ]),
+    );
+    vi.mocked(api.deleteDownload).mockImplementation(async () => {
+      removed = true;
+    });
+
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      renderEpisodes();
+
+      await screen.findByText('Transcribing episode');
+      await userEvent.click(screen.getByRole('button', { name: 'Remove download' }));
+
+      expect(await screen.findByText('Transcription canceled: Transcribing episode')).toBeInTheDocument();
+      expect(api.deleteDownload).toHaveBeenCalledWith(1);
+
+      const callsAtRemoval = vi.mocked(api.getEpisodeStatus).mock.calls.length;
+      await vi.advanceTimersByTimeAsync(1200);
+      expect(vi.mocked(api.getEpisodeStatus).mock.calls.length).toBe(callsAtRemoval);
+      expect(screen.queryByText('Transcription complete: Transcribing episode')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('toggles sort order and re-fetches with the new sort', async () => {
     vi.mocked(api.listEpisodes).mockResolvedValue([makeEpisode({ id: 1, title: 'Episode' })]);
     renderEpisodes();

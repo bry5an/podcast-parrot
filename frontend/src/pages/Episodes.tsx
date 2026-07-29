@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api';
 import { useProfiles } from '../state/ProfileContext';
 import { useTranscriptions } from '../state/TranscriptionContext';
+import { useToast } from '../state/ToastContext';
 import type { Episode, EpisodeFilter, EpisodeSort, Podcast } from '../lib/types';
 
 const FILTERS: { key: EpisodeFilter; label: string }[] = [
@@ -50,7 +51,9 @@ export function Episodes() {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentProfile, loading: profileLoading } = useProfiles();
-  const { statuses: trackedTranscriptStatuses, track: trackTranscription } = useTranscriptions();
+  const { statuses: trackedTranscriptStatuses, track: trackTranscription, untrack: untrackTranscription } =
+    useTranscriptions();
+  const { showToast } = useToast();
 
   const [podcast, setPodcast] = useState<Podcast | null>(
     (location.state as { podcast?: Podcast } | null)?.podcast ?? null,
@@ -138,7 +141,14 @@ export function Episodes() {
   );
 
   const removeDownload = async (episode: Episode) => {
+    const wasTranscribing = (trackedTranscriptStatuses[episode.id] ?? episode.transcript_status) === 'pending';
     await api.deleteDownload(episode.id);
+    if (wasTranscribing) {
+      // The server has already marked this transcription canceled; stop the
+      // live poller so a stale in-flight check can't fire a stray toast.
+      untrackTranscription(episode.id);
+      showToast(`Transcription canceled: ${episode.title}`);
+    }
     refreshRef.current();
   };
 
