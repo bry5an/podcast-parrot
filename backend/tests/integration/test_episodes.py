@@ -291,12 +291,29 @@ def test_get_status(client, session):
         "id": episode.id,
         "download_status": "downloaded",
         "transcript_status": "none",
+        "progress": None,
     }
 
 
 def test_get_status_missing_episode_returns_404(client):
     response = client.get("/api/episodes/999/status")
     assert response.status_code == 404
+
+
+def test_get_status_reports_progress_while_pending(client, session, monkeypatch):
+    from app.services import transcription
+
+    podcast = _make_podcast(session)
+    episode = _make_episode(
+        session, podcast, download_status=DownloadStatus.downloaded, transcript_status=TranscriptStatus.pending
+    )
+    transcription._set_progress(episode.id, 42)
+    try:
+        response = client.get(f"/api/episodes/{episode.id}/status")
+        assert response.status_code == 200
+        assert response.json()["progress"] == 42
+    finally:
+        transcription.clear_progress(episode.id)
 
 
 def test_get_transcript(client, session):

@@ -7,8 +7,8 @@ from sqlmodel import Session, select
 from app.models import Episode, Podcast, Sentence, Transcript, TranscriptSource, TranscriptStatus
 from app.services.furigana import build_segments
 from app.services.rss import TIMED_TRANSCRIPT_FORMATS, classify_transcript_format
-from app.services.transcript_parsers import parse_json_transcript, parse_srt, parse_vtt
-from app.services.transcription import WhisperModelNotFoundError, transcribe_audio
+from app.services.transcript_parsers import Cue, parse_json_transcript, parse_srt, parse_vtt
+from app.services.transcription import WhisperModelNotFoundError, clear_progress, transcribe_audio
 
 logger = logging.getLogger(__name__)
 
@@ -109,9 +109,16 @@ def ingest_transcript(session: Session, episode: Episode, audio_path: Path | Non
         session.commit()
 
 
+def _transcribe_with_progress(episode_id: int, audio_path: Path) -> tuple[list[Cue], str]:
+    try:
+        return transcribe_audio(str(audio_path), episode_id=episode_id)
+    finally:
+        clear_progress(episode_id)
+
+
 def _transcribe_with_asr(session: Session, episode: Episode, audio_path: Path) -> Transcript | None:
     try:
-        cues, detected_language = transcribe_audio(str(audio_path))
+        cues, detected_language = _transcribe_with_progress(episode.id, audio_path)
     except WhisperModelNotFoundError:
         episode.transcript_status = TranscriptStatus.queued
         session.add(episode)

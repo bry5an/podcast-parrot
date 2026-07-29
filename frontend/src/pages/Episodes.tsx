@@ -51,8 +51,12 @@ export function Episodes() {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentProfile, loading: profileLoading } = useProfiles();
-  const { statuses: trackedTranscriptStatuses, track: trackTranscription, untrack: untrackTranscription } =
-    useTranscriptions();
+  const {
+    statuses: trackedTranscriptStatuses,
+    progress: transcriptionProgress,
+    track: trackTranscription,
+    untrack: untrackTranscription,
+  } = useTranscriptions();
   const { showToast } = useToast();
 
   const [podcast, setPodcast] = useState<Podcast | null>(
@@ -257,8 +261,24 @@ export function Episodes() {
                           Queued
                         </span>
                       )}
+                      {ep.transcript_status === 'pending' && (
+                        <span style={queuedBadgeStyle}>
+                          {transcriptionProgress[ep.id] != null
+                            ? `Transcribing ${transcriptionProgress[ep.id]}%`
+                            : 'Transcribing…'}
+                        </span>
+                      )}
                     </div>
-                    {ep.position_seconds != null && ep.duration_seconds ? (
+                    {ep.transcript_status === 'pending' ? (
+                      <div style={progressTrackStyle} data-testid={`transcribe-progress-${ep.id}`}>
+                        <div
+                          style={{
+                            ...progressFillStyle,
+                            width: `${transcriptionProgress[ep.id] ?? 0}%`,
+                          }}
+                        />
+                      </div>
+                    ) : ep.position_seconds != null && ep.duration_seconds ? (
                       <div style={progressTrackStyle} data-testid={`progress-${ep.id}`}>
                         <div
                           style={{
@@ -347,13 +367,9 @@ function DownloadButton({
 
 function TranscribeButton({ episode, onTranscribe }: { episode: Episode; onTranscribe: () => void }) {
   if (episode.transcript_status === 'pending') {
-    return (
-      <div style={downloadBtnStyle} title="Transcribing…">
-        <svg className="spinner" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="rgba(32,30,26,.55)" strokeWidth={1.8}>
-          <path d="M10 3a7 7 0 1 1-7 7" />
-        </svg>
-      </div>
-    );
+    // The badge + progress bar in the row above already carry the "in
+    // progress" signal, so no separate indicator is needed in the button slot.
+    return null;
   }
   const isRetry = episode.transcript_status === 'queued' || episode.transcript_status === 'failed';
   return (

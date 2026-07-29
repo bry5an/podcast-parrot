@@ -11,6 +11,7 @@ from app.services.transcription import (
     _Segment,
     _segment_to_cues,
     _Word,
+    get_progress,
     transcribe_audio,
 )
 
@@ -75,6 +76,11 @@ def test_japanese_terminators_split_sentences():
 
 
 # --- transcribe_audio: subprocess boundary is stubbed ------------------
+#
+# afconvert still goes through subprocess.run; whisper-cli now goes through
+# subprocess.Popen + a background stderr-reading thread (so "-pp"'s
+# incremental "progress = NN%" lines can be parsed as they arrive). Each
+# boundary is faked separately below.
 
 
 class _FakeResult:
@@ -101,21 +107,66 @@ def _whisper_json_fixture():
     }
 
 
-def _make_fake_run(calls, json_payload, whisper_returncode=0, whisper_stderr="", kwargs_log=None):
+def _make_fake_afconvert_run(calls, returncode=0, stderr="", kwargs_log=None):
     def fake_run(command, **kwargs):
         calls.append(command)
         if kwargs_log is not None:
             kwargs_log.append(kwargs)
-        if command[0] == "/usr/bin/afconvert":
-            return _FakeResult(returncode=0)
-        if whisper_returncode != 0:
-            return _FakeResult(returncode=whisper_returncode, stderr=whisper_stderr)
-        prefix = command[command.index("-of") + 1]
-        with open(prefix + ".json", "w", encoding="utf-8") as f:
-            json.dump(json_payload, f)
+        if returncode != 0:
+            return _FakeResult(returncode=returncode, stderr=stderr)
         return _FakeResult(returncode=0)
 
     return fake_run
+
+
+def _make_fake_afconvert_timeout(kwargs_log=None):
+    def fake_run(command, **kwargs):
+        if kwargs_log is not None:
+            kwargs_log.append(kwargs)
+        raise subprocess.TimeoutExpired(cmd=command, timeout=kwargs.get("timeout"))
+
+    return fake_run
+
+
+def _make_fake_popen(
+    calls,
+    json_payload=None,
+    returncode=0,
+    stderr_lines=None,
+    timeout_on_first_wait=False,
+    wait_log=None,
+):
+    """Stands in for subprocess.Popen against an in-memory stderr line list,
+    so _run_whisper_cli's Popen + reader-thread wiring is actually exercised
+    without shelling out to a real whisper-cli binary."""
+    stderr_lines = list(stderr_lines or [])
+
+    class _FakePopen:
+        def __init__(self, command, **kwargs):
+            calls.append(command)
+            self.args = command
+            self.returncode = None
+            self.stdout = None
+            self.stderr = iter(stderr_lines)
+            self._wait_calls = 0
+            if json_payload is not None and returncode == 0:
+                prefix = command[command.index("-of") + 1]
+                with open(prefix + ".json", "w", encoding="utf-8") as f:
+                    json.dump(json_payload, f)
+
+        def wait(self, timeout=None):
+            if wait_log is not None:
+                wait_log.append(timeout)
+            self._wait_calls += 1
+            if timeout_on_first_wait and self._wait_calls == 1:
+                raise subprocess.TimeoutExpired(cmd=self.args, timeout=timeout)
+            self.returncode = returncode
+            return self.returncode
+
+        def kill(self):
+            pass
+
+    return _FakePopen
 
 
 def _stub_model(monkeypatch, tmp_path, exists=True):
@@ -129,9 +180,8 @@ def _stub_model(monkeypatch, tmp_path, exists=True):
 def test_transcribe_audio_happy_path(monkeypatch, tmp_path):
     _stub_model(monkeypatch, tmp_path)
     calls = []
-    monkeypatch.setattr(
-        "app.services.transcription.subprocess.run", _make_fake_run(calls, _whisper_json_fixture())
-    )
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr("app.services.transcription.subprocess.Popen", _make_fake_popen(calls, _whisper_json_fixture()))
 
     cues, language = transcribe_audio("/fake/input.mp3", language="ja")
 
@@ -141,14 +191,14 @@ def test_transcribe_audio_happy_path(monkeypatch, tmp_path):
     assert calls[0][-2] == "/fake/input.mp3"
     assert calls[1][0] == "/fake/whisper-cli"
     assert calls[1][calls[1].index("-l") + 1] == "ja"
+    assert "-pp" in calls[1]
 
 
 def test_transcribe_audio_language_none_passes_auto(monkeypatch, tmp_path):
     _stub_model(monkeypatch, tmp_path)
     calls = []
-    monkeypatch.setattr(
-        "app.services.transcription.subprocess.run", _make_fake_run(calls, _whisper_json_fixture())
-    )
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr("app.services.transcription.subprocess.Popen", _make_fake_popen(calls, _whisper_json_fixture()))
 
     transcribe_audio("/fake/input.mp3")
 
@@ -174,7 +224,8 @@ def test_special_tokens_are_filtered_from_words(monkeypatch, tmp_path):
         ],
     }
     calls = []
-    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_run(calls, payload))
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr("app.services.transcription.subprocess.Popen", _make_fake_popen(calls, payload))
 
     cues, _ = transcribe_audio("/fake/input.mp3", language="en")
 
@@ -184,9 +235,8 @@ def test_special_tokens_are_filtered_from_words(monkeypatch, tmp_path):
 def test_missing_model_raises_distinct_error_without_shelling_to_whisper_cli(monkeypatch, tmp_path):
     _stub_model(monkeypatch, tmp_path, exists=False)
     calls = []
-    monkeypatch.setattr(
-        "app.services.transcription.subprocess.run", _make_fake_run(calls, _whisper_json_fixture())
-    )
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr("app.services.transcription.subprocess.Popen", _make_fake_popen(calls, _whisper_json_fixture()))
 
     with pytest.raises(WhisperModelNotFoundError):
         transcribe_audio("/fake/input.mp3")
@@ -208,21 +258,21 @@ def test_afconvert_failure_raises_transcription_error(monkeypatch, tmp_path):
 def test_whisper_cli_failure_raises_transcription_error(monkeypatch, tmp_path):
     _stub_model(monkeypatch, tmp_path)
     calls = []
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
     monkeypatch.setattr(
-        "app.services.transcription.subprocess.run",
-        _make_fake_run(calls, _whisper_json_fixture(), whisper_returncode=1, whisper_stderr="exploded"),
+        "app.services.transcription.subprocess.Popen",
+        _make_fake_popen(calls, returncode=1, stderr_lines=["exploded\n"]),
     )
 
-    with pytest.raises(TranscriptionError):
+    with pytest.raises(TranscriptionError, match="exploded"):
         transcribe_audio("/fake/input.mp3")
 
 
 def test_temp_directory_cleaned_up_after_success(monkeypatch, tmp_path):
     _stub_model(monkeypatch, tmp_path)
     calls = []
-    monkeypatch.setattr(
-        "app.services.transcription.subprocess.run", _make_fake_run(calls, _whisper_json_fixture())
-    )
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr("app.services.transcription.subprocess.Popen", _make_fake_popen(calls, _whisper_json_fixture()))
 
     transcribe_audio("/fake/input.mp3", language="ja")
 
@@ -233,9 +283,10 @@ def test_temp_directory_cleaned_up_after_success(monkeypatch, tmp_path):
 def test_temp_directory_cleaned_up_after_failure(monkeypatch, tmp_path):
     _stub_model(monkeypatch, tmp_path)
     calls = []
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
     monkeypatch.setattr(
-        "app.services.transcription.subprocess.run",
-        _make_fake_run(calls, _whisper_json_fixture(), whisper_returncode=1, whisper_stderr="exploded"),
+        "app.services.transcription.subprocess.Popen",
+        _make_fake_popen(calls, returncode=1, stderr_lines=["exploded\n"]),
     )
 
     with pytest.raises(TranscriptionError):
@@ -245,31 +296,79 @@ def test_temp_directory_cleaned_up_after_failure(monkeypatch, tmp_path):
     assert not os.path.isdir(os.path.dirname(wav_path))
 
 
+# --- ASR progress reporting (#69) ---------------------------------------
+
+
+def test_progress_lines_update_get_progress(monkeypatch, tmp_path):
+    _stub_model(monkeypatch, tmp_path)
+    calls = []
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr(
+        "app.services.transcription.subprocess.Popen",
+        _make_fake_popen(
+            calls,
+            _whisper_json_fixture(),
+            stderr_lines=[
+                "whisper_print_progress_callback: progress =  16%\n",
+                "read_audio_data: trying to decode with miniaudio\n",
+                "whisper_print_progress_callback: progress = 100%\n",
+            ],
+        ),
+    )
+
+    try:
+        transcribe_audio("/fake/input.mp3", episode_id=42)
+        assert get_progress(42) == 100
+    finally:
+        from app.services.transcription import clear_progress
+
+        clear_progress(42)
+
+
+def test_transcribe_audio_without_episode_id_does_not_track_progress(monkeypatch, tmp_path):
+    _stub_model(monkeypatch, tmp_path)
+    calls = []
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr(
+        "app.services.transcription.subprocess.Popen",
+        _make_fake_popen(
+            calls,
+            _whisper_json_fixture(),
+            stderr_lines=["whisper_print_progress_callback: progress = 100%\n"],
+        ),
+    )
+
+    transcribe_audio("/fake/input.mp3")
+
+    assert get_progress(None) is None
+
+
 # --- subprocess timeouts (#57: hung whisper-cli blocked forever) -------
 
 
 def test_both_subprocess_calls_are_bounded_by_a_timeout(monkeypatch, tmp_path):
     _stub_model(monkeypatch, tmp_path)
     calls = []
-    kwargs_log = []
+    run_kwargs_log = []
     monkeypatch.setattr(
         "app.services.transcription.subprocess.run",
-        _make_fake_run(calls, _whisper_json_fixture(), kwargs_log=kwargs_log),
+        _make_fake_afconvert_run(calls, kwargs_log=run_kwargs_log),
+    )
+    wait_log = []
+    monkeypatch.setattr(
+        "app.services.transcription.subprocess.Popen",
+        _make_fake_popen(calls, _whisper_json_fixture(), wait_log=wait_log),
     )
 
     transcribe_audio("/fake/input.mp3", language="ja")
 
-    assert len(kwargs_log) == 2
-    assert all(isinstance(kwargs.get("timeout"), int | float) for kwargs in kwargs_log)
+    assert isinstance(run_kwargs_log[0].get("timeout"), int | float)
+    assert isinstance(wait_log[0], int | float)
 
 
 def test_afconvert_timeout_raises_transcription_error(monkeypatch, tmp_path):
     _stub_model(monkeypatch, tmp_path)
-
-    def fake_run(command, **kwargs):
-        raise subprocess.TimeoutExpired(cmd=command, timeout=kwargs.get("timeout"))
-
-    monkeypatch.setattr("app.services.transcription.subprocess.run", fake_run)
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_timeout())
 
     with pytest.raises(TranscriptionError):
         transcribe_audio("/fake/input.mp3")
@@ -277,13 +376,12 @@ def test_afconvert_timeout_raises_transcription_error(monkeypatch, tmp_path):
 
 def test_whisper_cli_timeout_raises_transcription_error(monkeypatch, tmp_path):
     _stub_model(monkeypatch, tmp_path)
-
-    def fake_run(command, **kwargs):
-        if command[0] == "/usr/bin/afconvert":
-            return _FakeResult(returncode=0)
-        raise subprocess.TimeoutExpired(cmd=command, timeout=kwargs.get("timeout"))
-
-    monkeypatch.setattr("app.services.transcription.subprocess.run", fake_run)
+    calls = []
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr(
+        "app.services.transcription.subprocess.Popen",
+        _make_fake_popen(calls, timeout_on_first_wait=True),
+    )
 
     with pytest.raises(TranscriptionError):
         transcribe_audio("/fake/input.mp3")
@@ -291,15 +389,16 @@ def test_whisper_cli_timeout_raises_transcription_error(monkeypatch, tmp_path):
 
 def test_whisper_cli_timeout_includes_partial_stderr_in_error(monkeypatch, tmp_path):
     _stub_model(monkeypatch, tmp_path)
-
-    def fake_run(command, **kwargs):
-        if command[0] == "/usr/bin/afconvert":
-            return _FakeResult(returncode=0)
-        raise subprocess.TimeoutExpired(
-            cmd=command, timeout=kwargs.get("timeout"), output="", stderr="trying to decode with miniaudio\n"
-        )
-
-    monkeypatch.setattr("app.services.transcription.subprocess.run", fake_run)
+    calls = []
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr(
+        "app.services.transcription.subprocess.Popen",
+        _make_fake_popen(
+            calls,
+            timeout_on_first_wait=True,
+            stderr_lines=["trying to decode with miniaudio\n"],
+        ),
+    )
 
     with pytest.raises(TranscriptionError, match="trying to decode with miniaudio"):
         transcribe_audio("/fake/input.mp3")

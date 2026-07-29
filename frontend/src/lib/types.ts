@@ -55,6 +55,8 @@ export interface EpisodeStatus {
   id: number;
   download_status: DownloadStatus;
   transcript_status: TranscriptStatus;
+  // Only populated while transcript_status is 'pending'.
+  progress: number | null;
 }
 
 export type TranscriptSource = 'published' | 'asr';
