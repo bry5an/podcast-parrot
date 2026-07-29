@@ -12,6 +12,7 @@ export function Library() {
   const [subscriptions, setSubscriptions] = useState<Podcast[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const refreshSubscriptions = useCallback(() => {
     if (!currentProfile) return;
@@ -78,19 +79,51 @@ export function Library() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '500 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.6)', padding: '0 10px' }}>
               <span style={{ fontSize: 13 }}>{meta.flag}</span> {meta.title}
             </div>
-            <div
-              onClick={() => {
-                clearProfile();
-                navigate('/');
-              }}
-              style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, border: '1px solid rgba(32,30,26,.08)', cursor: 'pointer' }}
-            >
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: swatch.art, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '600 12px/1 IBM Plex Sans' }}>
-                {currentProfile.name[0]?.toUpperCase()}
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ font: '600 12px/1.2 IBM Plex Sans' }}>{currentProfile.name}</div>
-                <div style={{ font: '400 10px/1.3 IBM Plex Mono', color: 'rgba(32,30,26,.45)', marginTop: 2 }}>{meta.code}</div>
+            <div style={{ position: 'relative', marginTop: 'auto' }}>
+              {profileMenuOpen && (
+                <>
+                  <div onClick={() => setProfileMenuOpen(false)} style={profileMenuOverlayStyle} />
+                  <div style={profileMenuStyle} data-testid="profile-menu">
+                    <button
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        navigate('/settings');
+                      }}
+                      style={profileMenuItemStyle}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6}>
+                        <circle cx="10" cy="10" r="2.6" />
+                        <path d="M10 3.5v2M10 14.5v2M16.5 10h-2M5.5 10h-2M14.8 5.2l-1.4 1.4M6.6 13.4l-1.4 1.4M14.8 14.8l-1.4-1.4M6.6 6.6L5.2 5.2" />
+                      </svg>
+                      Settings
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        clearProfile();
+                        navigate('/');
+                      }}
+                      style={profileMenuItemStyle}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6}>
+                        <path d="M7 4H4v12h3M13 6l4 4-4 4M9 10h8" />
+                      </svg>
+                      Switch profile
+                    </button>
+                  </div>
+                </>
+              )}
+              <div
+                onClick={() => setProfileMenuOpen((v) => !v)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, border: '1px solid rgba(32,30,26,.08)', cursor: 'pointer' }}
+              >
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: swatch.art, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '600 12px/1 IBM Plex Sans' }}>
+                  {currentProfile.name[0]?.toUpperCase()}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ font: '600 12px/1.2 IBM Plex Sans' }}>{currentProfile.name}</div>
+                  <div style={{ font: '400 10px/1.3 IBM Plex Mono', color: 'rgba(32,30,26,.45)', marginTop: 2 }}>{meta.code}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -173,3 +206,6 @@ const cardStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', 
 const cardArtStyle: React.CSSProperties = { width: 60, height: 60, flex: 'none', borderRadius: 11, objectFit: 'cover', cursor: 'pointer' };
 const levelBadgeStyle: React.CSSProperties = { font: '500 10px/1 IBM Plex Mono', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.12)', padding: '3px 6px', borderRadius: 5 };
 const unfollowBtnStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: '50%', border: '1px solid rgba(32,30,26,.12)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.5)' };
+const profileMenuOverlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 10 };
+const profileMenuStyle: React.CSSProperties = { position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 8, background: '#fff', border: '1px solid rgba(32,30,26,.1)', borderRadius: 12, boxShadow: '0 8px 24px rgba(32,30,26,.16)', padding: 6, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 11 };
+const profileMenuItemStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 8, border: 'none', background: 'none', font: '500 12.5px/1 IBM Plex Sans', color: '#211f1b', cursor: 'pointer', textAlign: 'left' };
