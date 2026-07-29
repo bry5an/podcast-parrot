@@ -7,6 +7,7 @@ import { useToast } from './ToastContext';
 interface TranscriptionContextValue {
   statuses: Record<number, TranscriptStatus>;
   track: (episodeId: number, title: string) => void;
+  untrack: (episodeId: number) => void;
 }
 
 const TranscriptionContext = createContext<TranscriptionContextValue | null>(null);
@@ -31,6 +32,19 @@ export function TranscriptionProvider({ children }: { children: ReactNode }) {
     delete timers.current[episodeId];
   }, []);
 
+  const untrack = useCallback(
+    (episodeId: number) => {
+      clearTimer(episodeId);
+      setStatuses((prev) => {
+        if (!(episodeId in prev)) return prev;
+        const next = { ...prev };
+        delete next[episodeId];
+        return next;
+      });
+    },
+    [clearTimer],
+  );
+
   const track = useCallback(
     (episodeId: number, title: string) => {
       if (timers.current[episodeId]) return;
@@ -48,6 +62,8 @@ export function TranscriptionProvider({ children }: { children: ReactNode }) {
             setStatuses((prev) => ({ ...prev, [episodeId]: status.transcript_status }));
             if (status.transcript_status === 'failed') {
               showToast(`Transcription failed: ${title}`, 'error');
+            } else if (status.transcript_status === 'canceled') {
+              showToast(`Transcription canceled: ${title}`);
             } else {
               showToast(`Transcription complete: ${title}`, 'success');
             }
@@ -69,7 +85,7 @@ export function TranscriptionProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <TranscriptionContext.Provider value={{ statuses, track }}>{children}</TranscriptionContext.Provider>
+    <TranscriptionContext.Provider value={{ statuses, track, untrack }}>{children}</TranscriptionContext.Provider>
   );
 }
 

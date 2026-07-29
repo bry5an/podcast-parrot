@@ -134,7 +134,12 @@ def start_transcription(episode_id: int, background_tasks: BackgroundTasks, sess
     if not episode.local_audio_path:
         raise HTTPException(status_code=400, detail="Episode audio has not been downloaded yet")
 
-    if episode.transcript_status in (TranscriptStatus.none, TranscriptStatus.queued, TranscriptStatus.failed):
+    if episode.transcript_status in (
+        TranscriptStatus.none,
+        TranscriptStatus.queued,
+        TranscriptStatus.failed,
+        TranscriptStatus.canceled,
+    ):
         episode.transcript_status = TranscriptStatus.pending
         session.add(episode)
         session.commit()
@@ -155,6 +160,12 @@ def delete_download(episode_id: int, session: Session = Depends(get_session)):
 
     episode.local_audio_path = None
     episode.download_status = DownloadStatus.idle
+    if episode.transcript_status == TranscriptStatus.pending:
+        # A transcription may still be running in the background against the
+        # now-deleted audio (its file handle can outlive the unlink); marking
+        # this terminal state now stops the client from treating whatever
+        # status it eventually lands on as a successful completion.
+        episode.transcript_status = TranscriptStatus.canceled
     session.add(episode)
     session.commit()
 

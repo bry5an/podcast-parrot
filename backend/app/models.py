@@ -59,6 +59,7 @@ class TranscriptStatus(str, Enum):
     auto = "auto"
     full = "full"
     failed = "failed"
+    canceled = "canceled"
 
 
 class Episode(SQLModel, table=True):

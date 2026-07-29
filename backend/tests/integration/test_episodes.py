@@ -185,6 +185,25 @@ def test_start_transcription_retries_after_failure(client, session, monkeypatch)
     assert calls == [episode.id]
 
 
+def test_start_transcription_retries_after_cancel(client, session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(
+        session,
+        podcast,
+        download_status=DownloadStatus.downloaded,
+        local_audio_path="1.mp3",
+        transcript_status=TranscriptStatus.canceled,
+    )
+
+    calls = []
+    monkeypatch.setattr("app.api.episodes.retry_transcription", lambda episode_id: calls.append(episode_id))
+
+    response = client.post(f"/api/episodes/{episode.id}/transcribe")
+    assert response.status_code == 202
+    assert response.json()["transcript_status"] == "pending"
+    assert calls == [episode.id]
+
+
 def test_start_transcription_missing_episode_returns_404(client):
     response = client.post("/api/episodes/999/transcribe")
     assert response.status_code == 404
@@ -235,6 +254,26 @@ def test_delete_download(client, session, monkeypatch, tmp_path):
 
     status = client.get(f"/api/episodes/{episode.id}/status").json()
     assert status["download_status"] == "idle"
+
+
+def test_delete_download_cancels_pending_transcription(client, session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.api.episodes.STORAGE_DIR", tmp_path)
+    podcast = _make_podcast(session)
+    audio_file = tmp_path / "1.mp3"
+    audio_file.write_bytes(b"fake audio")
+    episode = _make_episode(
+        session,
+        podcast,
+        local_audio_path="1.mp3",
+        download_status=DownloadStatus.downloaded,
+        transcript_status=TranscriptStatus.pending,
+    )
+
+    response = client.delete(f"/api/episodes/{episode.id}/download")
+    assert response.status_code == 204
+
+    status = client.get(f"/api/episodes/{episode.id}/status").json()
+    assert status["transcript_status"] == "canceled"
 
 
 def test_delete_download_missing_episode_returns_404(client):
