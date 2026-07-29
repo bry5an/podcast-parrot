@@ -1,5 +1,7 @@
+import hmac
 import json
 import os
+import re
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -17,6 +19,11 @@ FRONTEND_DIST = paths.resource_dir() / "frontend" / "dist"
 
 _AUTH_EXEMPT_PATHS = {"/api/health"}
 
+# The native <audio> element can't attach the x-kotoba-token header, so this
+# one route also accepts the token as a query param (see #64). Scoped to this
+# exact path so no mutating endpoint can be driven via a URL-embedded token.
+_AUDIO_PATH_RE = re.compile(r"^/api/episodes/\d+/audio$")
+
 
 class AuthTokenMiddleware(BaseHTTPMiddleware):
     """Requires KOTOBA_AUTH_TOKEN (set per-launch by the packaged sidecar) on
@@ -26,8 +33,13 @@ class AuthTokenMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         token = os.environ.get("KOTOBA_AUTH_TOKEN")
         if token and request.url.path.startswith("/api") and request.url.path not in _AUTH_EXEMPT_PATHS:
-            if request.headers.get("x-kotoba-token") != token:
-                return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+            if request.headers.get("x-kotoba-token") == token:
+                return await call_next(request)
+            query_token = request.query_params.get("token")
+            is_authorized_query_token = query_token is not None and hmac.compare_digest(query_token, token)
+            if _AUDIO_PATH_RE.match(request.url.path) and is_authorized_query_token:
+                return await call_next(request)
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
         return await call_next(request)
 
 

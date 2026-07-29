@@ -46,3 +46,21 @@ def test_index_route_injects_empty_token_when_unset(client, monkeypatch):
     response = client.get("/")
     assert response.status_code == 200
     assert "window.KOTOBA_AUTH_TOKEN = \"\";" in response.text
+
+
+def test_audio_route_accepts_correct_token_as_query_param(client, monkeypatch):
+    monkeypatch.setenv("KOTOBA_AUTH_TOKEN", "secret")
+    response = client.get("/api/episodes/9/audio?token=secret")
+    assert response.status_code != 401
+
+
+def test_audio_route_rejects_wrong_token_as_query_param(client, monkeypatch):
+    monkeypatch.setenv("KOTOBA_AUTH_TOKEN", "secret")
+    response = client.get("/api/episodes/9/audio?token=wrong")
+    assert response.status_code == 401
+
+
+def test_query_param_token_does_not_authorize_other_routes(client, monkeypatch):
+    monkeypatch.setenv("KOTOBA_AUTH_TOKEN", "secret")
+    response = client.get("/api/profiles?token=secret")
+    assert response.status_code == 401
