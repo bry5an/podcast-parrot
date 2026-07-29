@@ -8,6 +8,8 @@ import type {
   Podcast,
   Profile,
   ProfileCreate,
+  SavedSentence,
+  SavedSentenceCreate,
   ShadowSummary,
   Streak,
   Transcript,
@@ -111,6 +113,21 @@ export const api = {
   getShadowSummary: (profileId: number, episodeId: number) =>
     request<ShadowSummary>(`/api/profiles/${profileId}/episodes/${episodeId}/shadow-summary`),
   getStreak: (profileId: number) => request<Streak>(`/api/profiles/${profileId}/streak`),
+
+  listSavedSentences: (profileId: number) =>
+    request<SavedSentence[]>(`/api/profiles/${profileId}/saved-sentences`),
+  createSavedSentence: (profileId: number, payload: SavedSentenceCreate) =>
+    request<SavedSentence>(`/api/profiles/${profileId}/saved-sentences`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  renameSavedSentence: (profileId: number, id: number, name: string) =>
+    request<SavedSentence>(`/api/profiles/${profileId}/saved-sentences/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+  deleteSavedSentence: (profileId: number, id: number) =>
+    request<void>(`/api/profiles/${profileId}/saved-sentences/${id}`, { method: 'DELETE' }),
 
   listModels: () => request<WhisperModel[]>('/api/models'),
   downloadModel: (name: string) => request<WhisperModel>(`/api/models/${name}`, { method: 'POST' }),

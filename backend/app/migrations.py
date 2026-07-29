@@ -9,14 +9,39 @@ from sqlmodel import SQLModel
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = 1
+CURRENT_VERSION = 2
 
 Migration = Callable[[sqlite3.Connection], None]
+
+
+def _add_saved_sentence_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE savedsentence (
+            id INTEGER NOT NULL,
+            profile_id INTEGER NOT NULL,
+            episode_id INTEGER NOT NULL,
+            name VARCHAR NOT NULL,
+            start_sentence_id INTEGER NOT NULL,
+            end_sentence_id INTEGER NOT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            FOREIGN KEY(profile_id) REFERENCES profile (id),
+            FOREIGN KEY(episode_id) REFERENCES episode (id),
+            FOREIGN KEY(start_sentence_id) REFERENCES sentence (id),
+            FOREIGN KEY(end_sentence_id) REFERENCES sentence (id)
+        )
+        """
+    )
+    conn.execute("CREATE INDEX ix_savedsentence_profile_id ON savedsentence (profile_id)")
+    conn.execute("CREATE INDEX ix_savedsentence_episode_id ON savedsentence (episode_id)")
+    conn.execute("CREATE INDEX ix_savedsentence_created_at ON savedsentence (created_at)")
+
 
 # Keyed by the version each step migrates *to*. Version 1 is exactly the schema
 # `SQLModel.metadata.create_all()` produces, so it has no step here — both a
 # brand-new database and a pre-migration one are simply stamped at that version.
-MIGRATIONS: dict[int, Migration] = {}
+MIGRATIONS: dict[int, Migration] = {2: _add_saved_sentence_table}
 
 
 class SchemaTooNewError(RuntimeError):

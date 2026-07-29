@@ -71,6 +71,12 @@ export function Library() {
                 </svg>
                 Continue
               </div>
+              <div onClick={() => navigate('/saved-sentences')} style={navItemStyle} data-testid="nav-saved-sentences">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6}>
+                  <path d="M5 4h10v13l-5-3-5 3V4z" />
+                </svg>
+                Saved Sentences
+              </div>
             </div>
             <div style={{ height: 1, background: 'rgba(32,30,26,.08)', margin: '16px 6px' }} />
             <div style={{ font: '500 10px/1 IBM Plex Mono', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(32,30,26,.4)', padding: '0 10px 10px' }}>

@@ -122,3 +122,17 @@ class ShadowEvent(SQLModel, table=True):
     episode_id: int = Field(foreign_key="episode.id", index=True)
     sentence_id: int = Field(foreign_key="sentence.id", index=True)
     shadowed_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class SavedSentence(SQLModel, table=True):
+    # Sentences are immutable once a Transcript is built (see
+    # services/transcripts.py — never deleted/rebuilt), so referencing them by
+    # FK is safe; series/episode/text are derived at read time via joins
+    # rather than duplicated here (see api/saved_sentences.py).
+    id: int | None = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id", index=True)
+    episode_id: int = Field(foreign_key="episode.id", index=True)
+    name: str
+    start_sentence_id: int = Field(foreign_key="sentence.id")
+    end_sentence_id: int = Field(foreign_key="sentence.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
