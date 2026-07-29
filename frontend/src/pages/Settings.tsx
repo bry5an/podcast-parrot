@@ -1,7 +1,20 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useProfiles } from '../state/ProfileContext';
+import {
+  DEFAULT_SEEK_STEP_SECONDS,
+  formatKeyLabel,
+  formatModifierLabel,
+  isModifierKey,
+  loadKeymap,
+  loadSeekStepSeconds,
+  modifierFromEvent,
+  normalizeKey,
+  saveKeymap,
+  saveSeekStepSeconds,
+} from '../lib/keybindings';
+import type { KeybindingAction, Keymap } from '../lib/keybindings';
 
 type SectionId = 'playback' | 'transcription' | 'reading-aids' | 'library-storage' | 'appearance';
 type PlaybackSpeed = '0.75x' | '1x' | '1.25x' | '1.5x';
@@ -46,10 +59,11 @@ const NAV_ITEMS: { id: SectionId; label: string }[] = [
   { id: 'appearance', label: 'Appearance' },
 ];
 
-const KEYBINDINGS: { icon: ReactNode; label: string; description: string; keys: string }[] = [
-  { icon: <path d="M7 5l7 5-7 5V5z" />, label: 'Play / pause', description: 'Toggle audio', keys: 'Space' },
-  { icon: <path d="M14 6a5 5 0 1 0 1.4 4.6M14 3v4h-4" />, label: 'Replay sentence once', description: 'Restart current line', keys: 'R' },
+const KEYBINDINGS: { id: KeybindingAction | 'seekModifier'; icon: ReactNode; label: string; description: string }[] = [
+  { id: 'playPause', icon: <path d="M7 5l7 5-7 5V5z" />, label: 'Play / pause', description: 'Toggle audio' },
+  { id: 'replaySentence', icon: <path d="M14 6a5 5 0 1 0 1.4 4.6M14 3v4h-4" />, label: 'Replay sentence once', description: 'Restart current line' },
   {
+    id: 'toggleLoop',
     icon: (
       <>
         <circle cx="7" cy="10" r="2.4" />
@@ -58,9 +72,9 @@ const KEYBINDINGS: { icon: ReactNode; label: string; description: string; keys: 
     ),
     label: 'Toggle sentence loop',
     description: 'Infinite repeat',
-    keys: 'L',
   },
   {
+    id: 'previousSentence',
     icon: (
       <>
         <path d="M6 5v10" />
@@ -69,9 +83,9 @@ const KEYBINDINGS: { icon: ReactNode; label: string; description: string; keys: 
     ),
     label: 'Previous sentence',
     description: 'Jump back one line',
-    keys: '←',
   },
   {
+    id: 'nextSentence',
     icon: (
       <>
         <path d="M14 5v10" />
@@ -80,10 +94,9 @@ const KEYBINDINGS: { icon: ReactNode; label: string; description: string; keys: 
     ),
     label: 'Next sentence',
     description: 'Jump forward one line',
-    keys: '→',
   },
-  { icon: <path d="M12 5l-5 5 5 5M17 5l-5 5 5 5" />, label: 'Seek back / forward', description: 'Scrub within a line', keys: '⇧ ←/→' },
-  { icon: <path d="M10 4a6 6 0 1 0 6 6M10 4V2M10 8l3-3" />, label: 'Cycle speed', description: 'Step playback rate', keys: 'S' },
+  { id: 'seekModifier', icon: <path d="M12 5l-5 5 5 5M17 5l-5 5 5 5" />, label: 'Seek back / forward', description: 'Scrub within a line' },
+  { id: 'cycleSpeed', icon: <path d="M10 4a6 6 0 1 0 6 6M10 4V2M10 8l3-3" />, label: 'Cycle speed', description: 'Step playback rate' },
 ];
 
 const WHISPER_MODELS: { id: string; name: string; size: string; installed: boolean; speed: string; quality: string; description: string }[] = [
@@ -93,6 +106,9 @@ const WHISPER_MODELS: { id: string; name: string; size: string; installed: boole
   { id: 'medium', name: 'Medium', size: '1.5 GB', installed: false, speed: '~1× realtime', quality: 'high', description: 'High accuracy on fast or noisy speech.' },
   { id: 'large-v3', name: 'Large v3', size: '3.1 GB', installed: false, speed: '~0.5× realtime', quality: 'best', description: 'Best accuracy. Slow without a strong GPU.' },
 ];
+
+const SEEK_STEP_SECONDS: Record<SeekStep, number> = { '3s': 3, '5s': 5, '10s': 10 };
+const SECONDS_TO_SEEK_STEP: Record<number, SeekStep> = { 3: '3s', 5: '5s', 10: '10s' };
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
   return (
@@ -178,8 +194,50 @@ export function Settings() {
   const sectionRefs = useRef<Partial<Record<SectionId, HTMLElement | null>>>({});
 
   const [speed, setSpeed] = useState<PlaybackSpeed>('1x');
-  const [seekStep, setSeekStep] = useState<SeekStep>('5s');
+  const [seekStep, setSeekStep] = useState<SeekStep>(() => SECONDS_TO_SEEK_STEP[loadSeekStepSeconds()] ?? SECONDS_TO_SEEK_STEP[DEFAULT_SEEK_STEP_SECONDS]);
   const [autoAdvance, setAutoAdvance] = useState(true);
+
+  const [keymap, setKeymap] = useState<Keymap>(() => loadKeymap());
+  const [listening, setListening] = useState<KeybindingAction | 'seekModifier' | null>(null);
+
+  useEffect(() => {
+    if (!listening) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setListening(null);
+        return;
+      }
+      if (listening === 'seekModifier') {
+        const modifier = modifierFromEvent(e);
+        if (!modifier) return;
+        e.preventDefault();
+        setKeymap((prev) => {
+          const next = { ...prev, seekModifier: modifier };
+          saveKeymap(next);
+          return next;
+        });
+        setListening(null);
+        return;
+      }
+      if (isModifierKey(e.key)) return;
+      e.preventDefault();
+      const key = normalizeKey(e.key);
+      setKeymap((prev) => {
+        const next = { ...prev, [listening]: key };
+        saveKeymap(next);
+        return next;
+      });
+      setListening(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [listening]);
+
+  const handleSeekStepChange = (value: SeekStep) => {
+    setSeekStep(value);
+    saveSeekStepSeconds(SEEK_STEP_SECONDS[value]);
+  };
 
   const [selectedModel, setSelectedModel] = useState('small');
   const [computeDevice, setComputeDevice] = useState<ComputeDevice>('gpu');
@@ -241,19 +299,27 @@ export function Settings() {
           subtitle="Global shortcuts while shadowing. Click any key to rebind, then press the new key."
         >
           <div style={styles.card}>
-            {KEYBINDINGS.map((kb) => (
-              <SettingRow
-                key={kb.label}
-                icon={kb.icon}
-                title={kb.label}
-                subtitle={kb.description}
-                control={
-                  <button type="button" style={styles.keyBadge}>
-                    {kb.keys}
-                  </button>
-                }
-              />
-            ))}
+            {KEYBINDINGS.map((kb) => {
+              const isListening = listening === kb.id;
+              const label = kb.id === 'seekModifier' ? `${formatModifierLabel(keymap.seekModifier)} ←/→` : formatKeyLabel(keymap[kb.id]);
+              return (
+                <SettingRow
+                  key={kb.label}
+                  icon={kb.icon}
+                  title={kb.label}
+                  subtitle={kb.description}
+                  control={
+                    <button
+                      type="button"
+                      onClick={() => setListening(kb.id)}
+                      style={{ ...styles.keyBadge, ...(isListening ? styles.keyBadgeListening : {}) }}
+                    >
+                      {isListening ? 'Press a key…' : label}
+                    </button>
+                  }
+                />
+              );
+            })}
           </div>
 
           <div style={styles.inlineRow}>
@@ -279,7 +345,7 @@ export function Settings() {
                   { value: '10s', label: '10s' },
                 ]}
                 value={seekStep}
-                onChange={setSeekStep}
+                onChange={handleSeekStepChange}
               />
             </div>
           </div>
@@ -506,6 +572,7 @@ const styles: Record<string, React.CSSProperties> = {
   rowTitle: { font: '600 13.5px/1.3 IBM Plex Sans', color: '#211f1b' },
   rowSubtitle: { font: '400 12px/1.5 IBM Plex Sans', color: 'rgba(32,30,26,.5)', marginTop: 2 },
   keyBadge: { minWidth: 56, height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(32,30,26,.14)', background: '#fff', font: '600 12px/1 IBM Plex Mono', color: '#211f1b', cursor: 'pointer' },
+  keyBadgeListening: { border: '1.5px solid oklch(0.55 0.055 195)', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.08)' },
   inlineRow: { display: 'flex', gap: 24, marginBottom: 14 },
   groupLabel: { font: '500 11px/1 IBM Plex Mono', letterSpacing: '.04em', textTransform: 'uppercase', color: 'rgba(32,30,26,.45)', marginBottom: 8 },
   segmentedRow: { display: 'flex', gap: 6 },

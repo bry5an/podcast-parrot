@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Settings } from './Settings';
 import { ProfileProvider } from '../state/ProfileContext';
 import { api } from '../lib/api';
+import { loadKeymap, loadSeekStepSeconds } from '../lib/keybindings';
 import type { Profile } from '../lib/types';
 
 vi.mock('../lib/api');
@@ -114,5 +115,58 @@ describe('Settings', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(await screen.findByTestId('library-stub')).toBeInTheDocument();
+  });
+
+  it('captures a rebind for a keybinding badge and persists it', async () => {
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Playback & keybindings' });
+
+    const badge = screen.getByRole('button', { name: 'Space' });
+    await userEvent.click(badge);
+    expect(badge).toHaveTextContent('Press a key…');
+
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(badge).toHaveTextContent('P');
+    expect(loadKeymap().playPause).toBe('p');
+  });
+
+  it('cancels a rebind on Escape without changing the binding', async () => {
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Playback & keybindings' });
+
+    const badge = screen.getByRole('button', { name: 'R' });
+    await userEvent.click(badge);
+    expect(badge).toHaveTextContent('Press a key…');
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(badge).toHaveTextContent('R');
+    expect(loadKeymap().replaySentence).toBe('r');
+  });
+
+  it('rebinds the seek modifier only from a modifier keypress, ignoring other keys', async () => {
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Playback & keybindings' });
+
+    const badge = screen.getByRole('button', { name: '⇧ ←/→' });
+    await userEvent.click(badge);
+
+    fireEvent.keyDown(window, { key: 'x' });
+    expect(badge).toHaveTextContent('Press a key…');
+
+    fireEvent.keyDown(window, { key: 'Alt', altKey: true });
+    expect(badge).toHaveTextContent('⌥ ←/→');
+    expect(loadKeymap().seekModifier).toBe('alt');
+  });
+
+  it('persists the seek step selection', async () => {
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Playback & keybindings' });
+
+    await userEvent.click(screen.getByRole('button', { name: '10s' }));
+    expect(loadSeekStepSeconds()).toBe(10);
   });
 });

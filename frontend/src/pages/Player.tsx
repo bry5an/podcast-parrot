@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { Ruby } from '../components/Ruby';
 import { useProfiles } from '../state/ProfileContext';
 import { invokeTauri, listenTauri } from '../lib/tauri';
+import { eventMatchesModifier, loadKeymap, loadSeekStepSeconds, normalizeKey } from '../lib/keybindings';
 import type { Episode, Podcast, Sentence, Transcript } from '../lib/types';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5] as const;
@@ -206,6 +207,70 @@ export function Player() {
     return () => unlisten?.();
   }, []);
 
+  // Playback keybindings, configurable in Settings and persisted to
+  // localStorage (frontend/src/lib/keybindings.ts). Loaded once per mount;
+  // dispatches through the *Ref mirrors above so it always reaches the
+  // latest jumpTo/togglePlay closure without re-subscribing every render.
+  useEffect(() => {
+    const keymap = loadKeymap();
+    const seekStepSeconds = loadSeekStepSeconds();
+
+    const seek = (delta: number) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const idx = activeIndexRef.current;
+      const bounds = idx !== -1 ? sentencesRef.current[idx] : null;
+      const min = bounds ? bounds.start_time : 0;
+      const max = bounds ? bounds.end_time : audio.duration || Infinity;
+      audio.currentTime = Math.min(max, Math.max(min, audio.currentTime + delta));
+      pushNowPlayingRef.current(audio.paused ? 0 : audio.playbackRate);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (!audioRef.current) return;
+
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && eventMatchesModifier(e, keymap.seekModifier)) {
+        e.preventDefault();
+        seek(e.key === 'ArrowLeft' ? -seekStepSeconds : seekStepSeconds);
+        return;
+      }
+
+      const key = normalizeKey(e.key);
+      if (key === keymap.playPause) {
+        e.preventDefault();
+        togglePlayRef.current();
+      } else if (key === keymap.replaySentence) {
+        if (activeIndexRef.current !== -1) {
+          e.preventDefault();
+          jumpToRef.current(activeIndexRef.current);
+        }
+      } else if (key === keymap.toggleLoop) {
+        e.preventDefault();
+        setLoopOne((v) => !v);
+      } else if (key === keymap.previousSentence) {
+        const idx = activeIndexRef.current;
+        if (idx > 0) {
+          e.preventDefault();
+          jumpToRef.current(idx - 1);
+        }
+      } else if (key === keymap.nextSentence) {
+        const idx = activeIndexRef.current;
+        if (idx !== -1 && idx < sentencesRef.current.length - 1) {
+          e.preventDefault();
+          jumpToRef.current(idx + 1);
+        }
+      } else if (key === keymap.cycleSpeed) {
+        e.preventDefault();
+        setSpeedIdx((i) => (i + 1) % SPEEDS.length);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const handleTimeUpdate = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -242,6 +307,11 @@ export function Player() {
     audio.play();
     pushNowPlaying(SPEEDS[speedIdx]);
   };
+  // Mirrors pushNowPlayingRef/savePositionRef below — lets the keyboard-shortcut
+  // effect (mounted once, empty deps) always call the current render's closure
+  // instead of the one captured when the listener was first attached.
+  const jumpToRef = useRef(jumpTo);
+  jumpToRef.current = jumpTo;
 
   const togglePlay = () => {
     const audio = audioRef.current;
@@ -249,6 +319,8 @@ export function Player() {
     if (audio.paused) audio.play();
     else audio.pause();
   };
+  const togglePlayRef = useRef(togglePlay);
+  togglePlayRef.current = togglePlay;
 
   const onScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
     const t = Number(e.target.value);
