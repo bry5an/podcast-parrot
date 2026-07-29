@@ -24,9 +24,16 @@ class PodcastSource(str, Enum):
     user_added = "user_added"
 
 
+class PodcastKind(str, Enum):
+    rss = "rss"
+    youtube = "youtube"
+
+
 class Podcast(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    rss_url: str = Field(unique=True, index=True)
+    rss_url: str | None = Field(default=None, unique=True, index=True)
+    youtube_playlist_url: str | None = Field(default=None, unique=True, index=True)
+    kind: PodcastKind = Field(default=PodcastKind.rss)
     title: str
     description: str = ""
     artwork_url: str | None = None

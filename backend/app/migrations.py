@@ -9,7 +9,7 @@ from sqlmodel import SQLModel
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = 2
+CURRENT_VERSION = 3
 
 Migration = Callable[[sqlite3.Connection], None]
 
@@ -38,10 +38,49 @@ def _add_saved_sentence_table(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX ix_savedsentence_created_at ON savedsentence (created_at)")
 
 
+def _make_podcast_kind_aware(conn: sqlite3.Connection) -> None:
+    # SQLite can't drop a NOT NULL constraint via ALTER TABLE, so rss_url
+    # becoming optional (YouTube-sourced podcasts have none) requires a full
+    # table rebuild rather than an ADD COLUMN. `id` is copied verbatim so
+    # episode.podcast_id foreign keys stay valid.
+    conn.execute(
+        """
+        CREATE TABLE podcast_new (
+            id INTEGER NOT NULL,
+            rss_url VARCHAR,
+            youtube_playlist_url VARCHAR,
+            kind VARCHAR(7) NOT NULL,
+            title VARCHAR NOT NULL,
+            description VARCHAR NOT NULL,
+            artwork_url VARCHAR,
+            language VARCHAR NOT NULL,
+            level_tag VARCHAR,
+            source VARCHAR(10) NOT NULL,
+            last_polled_at DATETIME,
+            PRIMARY KEY (id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO podcast_new
+            (id, rss_url, youtube_playlist_url, kind, title, description, artwork_url,
+             language, level_tag, source, last_polled_at)
+        SELECT id, rss_url, NULL, 'rss', title, description, artwork_url,
+               language, level_tag, source, last_polled_at
+        FROM podcast
+        """
+    )
+    conn.execute("DROP TABLE podcast")
+    conn.execute("ALTER TABLE podcast_new RENAME TO podcast")
+    conn.execute("CREATE UNIQUE INDEX ix_podcast_rss_url ON podcast (rss_url)")
+    conn.execute("CREATE UNIQUE INDEX ix_podcast_youtube_playlist_url ON podcast (youtube_playlist_url)")
+
+
 # Keyed by the version each step migrates *to*. Version 1 is exactly the schema
 # `SQLModel.metadata.create_all()` produces, so it has no step here — both a
 # brand-new database and a pre-migration one are simply stamped at that version.
-MIGRATIONS: dict[int, Migration] = {2: _add_saved_sentence_table}
+MIGRATIONS: dict[int, Migration] = {2: _add_saved_sentence_table, 3: _make_podcast_kind_aware}
 
 
 class SchemaTooNewError(RuntimeError):

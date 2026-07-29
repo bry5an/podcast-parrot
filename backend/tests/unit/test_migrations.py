@@ -102,8 +102,8 @@ def test_v1_database_gains_a_working_savedsentence_table(tmp_path):
         "VALUES ('Kenji', 0, 'en_ja', 1, '2024-01-01')"
     )
     conn.execute(
-        "INSERT INTO podcast (rss_url, title, description, language, source) "
-        "VALUES ('https://x', 'Show', '', 'ja', 'user_added')"
+        "INSERT INTO podcast (rss_url, kind, title, description, language, source) "
+        "VALUES ('https://x', 'rss', 'Show', '', 'ja', 'user_added')"
     )
     conn.execute(
         "INSERT INTO episode (podcast_id, guid, title, audio_url, download_status, transcript_status) "
@@ -169,6 +169,62 @@ def test_pending_migration_is_applied_exactly_once_and_is_idempotent(tmp_path, m
 
     assert calls == [1]  # not re-applied
     assert [p.name for p in tmp_path.glob("*.bak-*")] == ["kotoba.db.bak-1"]  # no new backup taken
+
+
+def test_v2_podcast_table_gains_kind_and_youtube_columns(tmp_path):
+    # Simulates a real pre-#85 install: the exact podcast schema that shipped
+    # before youtube_playlist_url/kind existed (rss_url required and unique),
+    # with one real row in it, stamped at version 2.
+    db_path = tmp_path / "kotoba.db"
+    engine = _engine_for(db_path)
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    conn.execute(
+        """
+        CREATE TABLE podcast (
+            id INTEGER NOT NULL,
+            rss_url VARCHAR NOT NULL,
+            title VARCHAR NOT NULL,
+            description VARCHAR NOT NULL,
+            artwork_url VARCHAR,
+            language VARCHAR NOT NULL,
+            level_tag VARCHAR,
+            source VARCHAR(10) NOT NULL,
+            last_polled_at DATETIME,
+            PRIMARY KEY (id)
+        )
+        """
+    )
+    conn.execute("CREATE UNIQUE INDEX ix_podcast_rss_url ON podcast (rss_url)")
+    conn.execute(
+        "INSERT INTO podcast (id, rss_url, title, description, language, source) "
+        "VALUES (1, 'https://example.com/feed.xml', 'Nihongo News', '', 'ja', 'user_added')"
+    )
+    conn.execute("PRAGMA user_version = 2")
+    conn.close()
+
+    migrations.run(db_path, engine)
+
+    assert _user_version(db_path) == migrations.CURRENT_VERSION
+    conn = sqlite3.connect(db_path)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(podcast)")}
+    assert {"rss_url", "youtube_playlist_url", "kind"} <= columns
+
+    row = conn.execute("SELECT id, rss_url, youtube_playlist_url, kind, title FROM podcast").fetchone()
+    assert row == (1, "https://example.com/feed.xml", None, "rss", "Nihongo News")
+
+    # A new YouTube-sourced row (no rss_url) is now insertable...
+    conn.execute(
+        "INSERT INTO podcast (rss_url, youtube_playlist_url, kind, title, description, language, source) "
+        "VALUES (NULL, 'https://www.youtube.com/playlist?list=abc', 'youtube', 'Show', '', 'ja', 'user_added')"
+    )
+    conn.commit()
+    # ...and rss_url uniqueness (ignoring the now-many NULLs) is still enforced.
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO podcast (rss_url, kind, title, description, language, source) "
+            "VALUES ('https://example.com/feed.xml', 'rss', 'Dupe', '', 'ja', 'user_added')"
+        )
+    conn.close()
 
 
 def test_failed_migration_step_rolls_back_and_leaves_version_unchanged(tmp_path, monkeypatch):

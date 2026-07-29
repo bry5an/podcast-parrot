@@ -2,8 +2,9 @@ from datetime import datetime, timedelta
 
 from sqlmodel import Session, select
 
-from app.models import Episode, Podcast, TranscriptStatus
+from app.models import Episode, Podcast, PodcastKind, TranscriptStatus
 from app.services.rss import TIMED_TRANSCRIPT_FORMATS, FeedFetchError, fetch_episodes
+from app.services.youtube import YoutubeFetchError, fetch_playlist_episodes
 
 POLL_INTERVAL = timedelta(minutes=15)
 
@@ -31,8 +32,11 @@ def sync_episodes(session: Session, podcast: Podcast) -> None:
         return
 
     try:
-        fetched = fetch_episodes(podcast.rss_url)
-    except FeedFetchError:
+        if podcast.kind == PodcastKind.youtube:
+            fetched = fetch_playlist_episodes(podcast.youtube_playlist_url)
+        else:
+            fetched = fetch_episodes(podcast.rss_url)
+    except (FeedFetchError, YoutubeFetchError):
         return
 
     existing = {

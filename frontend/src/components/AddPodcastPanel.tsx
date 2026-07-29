@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { looksLikeRssUrl } from '../lib/rss';
 import type { Podcast } from '../lib/types';
+import { looksLikeYoutubePlaylistUrl } from '../lib/youtube';
 
 interface Props {
   profileId: number;
@@ -16,10 +17,13 @@ export function AddPodcastPanel({ profileId, language, onClose, onSubscriptionCh
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
-  const isRss = looksLikeRssUrl(query);
+  const isYoutube = looksLikeYoutubePlaylistUrl(query);
+  // The RSS pattern matches any https:// URL, so a pasted YouTube link would
+  // otherwise also satisfy it — check YouTube first.
+  const isRss = !isYoutube && looksLikeRssUrl(query);
 
   useEffect(() => {
-    if (isRss) {
+    if (isRss || isYoutube) {
       setResults([]);
       return;
     }
@@ -30,7 +34,7 @@ export function AddPodcastPanel({ profileId, language, onClose, onSubscriptionCh
     return () => {
       cancelled = true;
     };
-  }, [query, isRss, profileId, language]);
+  }, [query, isRss, isYoutube, profileId, language]);
 
   const toggleFollow = async (podcast: Podcast) => {
     if (podcast.subscribed) {
@@ -52,6 +56,21 @@ export function AddPodcastPanel({ profileId, language, onClose, onSubscriptionCh
       onSubscriptionChange();
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Could not add that feed');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const addPlaylist = async () => {
+    setAdding(true);
+    setAddError(null);
+    try {
+      const podcast = await api.addYoutubePodcast(query.trim());
+      await api.subscribe(profileId, podcast.id);
+      setQuery('');
+      onSubscriptionChange();
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Could not add that playlist');
     } finally {
       setAdding(false);
     }
@@ -81,11 +100,30 @@ export function AddPodcastPanel({ profileId, language, onClose, onSubscriptionCh
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search shows, or paste an RSS URL"
+              placeholder="Search shows, or paste an RSS or YouTube playlist URL"
               style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', font: '400 13.5px/1 IBM Plex Sans', color: '#211f1b' }}
             />
           </div>
         </div>
+
+        {isYoutube && (
+          <div style={rssBannerStyle}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="oklch(0.45 0.055 195)" strokeWidth={1.7}>
+              <circle cx="5" cy="15" r="1.6" />
+              <path d="M4 9a7 7 0 0 1 7 7M4 4a12 12 0 0 1 12 12" />
+            </svg>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ font: '600 12.5px/1.3 IBM Plex Sans' }}>YouTube playlist detected</div>
+              <div style={{ font: '400 11px/1.4 IBM Plex Mono', color: 'rgba(32,30,26,.5)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {query}
+              </div>
+              {addError && <div style={{ font: '400 11px/1.4 IBM Plex Sans', color: 'oklch(0.5 0.13 25)', marginTop: 4 }}>{addError}</div>}
+            </div>
+            <button onClick={addPlaylist} disabled={adding} style={addFeedBtnStyle}>
+              {adding ? 'Adding…' : 'Add playlist'}
+            </button>
+          </div>
+        )}
 
         {isRss && (
           <div style={rssBannerStyle}>
@@ -108,12 +146,13 @@ export function AddPodcastPanel({ profileId, language, onClose, onSubscriptionCh
 
         <div style={{ padding: '0 24px 6px', flex: 'none' }}>
           <span style={{ font: '500 10px/1 IBM Plex Mono', letterSpacing: '.09em', textTransform: 'uppercase', color: 'rgba(32,30,26,.4)' }}>
-            {isRss ? 'Directory' : query ? 'Search results' : 'Suggested shows'}
+            {isRss || isYoutube ? 'Directory' : query ? 'Search results' : 'Suggested shows'}
           </span>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px 24px 22px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {!isRss &&
+            !isYoutube &&
             results.map((r) => (
               <div key={r.id} style={resultRowStyle}>
                 {r.artwork_url ? (
@@ -150,11 +189,11 @@ export function AddPodcastPanel({ profileId, language, onClose, onSubscriptionCh
                 </button>
               </div>
             ))}
-          {!isRss && query && results.length === 0 && (
+          {!isRss && !isYoutube && query && results.length === 0 && (
             <div style={{ textAlign: 'center', padding: '34px 20px', color: 'rgba(32,30,26,.5)', font: '400 13px/1.6 IBM Plex Sans' }}>
               No shows match "{query}".
               <br />
-              Paste the podcast's RSS feed URL to add it directly.
+              Paste the podcast's RSS feed URL or a YouTube playlist URL to add it directly.
             </div>
           )}
         </div>
