@@ -86,6 +86,10 @@ def ingest_transcript(session: Session, episode: Episode, audio_path: Path | Non
         return
 
     original_status = episode.transcript_status
+    if original_status == TranscriptStatus.pending:
+        # A caller (e.g. the /transcribe endpoint) may have already optimistically
+        # set pending before invoking us — reverting to that would be a no-op.
+        original_status = TranscriptStatus.none
     episode.transcript_status = TranscriptStatus.pending
     session.add(episode)
     session.commit()
@@ -115,8 +119,14 @@ def _transcribe_with_asr(session: Session, episode: Episode, audio_path: Path) -
         return None
     except Exception:
         logger.exception("ASR transcription failed for episode %s", episode.id)
+        episode.transcript_status = TranscriptStatus.failed
+        session.add(episode)
+        session.commit()
         return None
     if not cues:
+        episode.transcript_status = TranscriptStatus.failed
+        session.add(episode)
+        session.commit()
         return None
 
     transcript = Transcript(
@@ -142,6 +152,9 @@ def _transcribe_with_asr(session: Session, episode: Episode, audio_path: Path) -
     except Exception:
         logger.exception("Failed to build segments for episode %s", episode.id)
         session.rollback()
+        episode.transcript_status = TranscriptStatus.failed
+        session.add(episode)
+        session.commit()
         return None
 
     episode.transcript_status = TranscriptStatus.auto

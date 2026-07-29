@@ -158,6 +158,47 @@ describe('Episodes', () => {
     expect(screen.getByRole('button', { name: 'Retry transcription' })).toBeInTheDocument();
   });
 
+  it('labels the Transcribe button as a retry when the episode has failed', async () => {
+    vi.mocked(api.listEpisodes).mockResolvedValue([
+      makeEpisode({ id: 1, title: 'Failed episode', download_status: 'downloaded', transcript_status: 'failed' }),
+    ]);
+    renderEpisodes();
+
+    await screen.findByText('Failed episode');
+    expect(screen.getByRole('button', { name: 'Retry transcription' })).toBeInTheDocument();
+  });
+
+  it('stops polling and surfaces a retry affordance after repeated status-check failures', async () => {
+    vi.mocked(api.listEpisodes).mockResolvedValue([
+      makeEpisode({ id: 1, title: 'Untranscribed episode', download_status: 'downloaded', transcript_status: 'none' }),
+    ]);
+    vi.mocked(api.transcribeEpisode).mockResolvedValue({ id: 1, download_status: 'downloaded', transcript_status: 'pending' });
+    vi.mocked(api.getEpisodeStatus).mockRejectedValue(new Error('network error'));
+
+    // Only setInterval/clearInterval are faked (left active through the click below),
+    // so RTL's internal setTimeout-based waitFor/findBy* polling keeps running on the
+    // real clock while the poll interval itself is under our control.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      renderEpisodes();
+
+      await screen.findByText('Untranscribed episode');
+      await userEvent.click(screen.getByRole('button', { name: 'Transcribe' }));
+
+      for (let i = 0; i < 5; i += 1) {
+        await vi.advanceTimersByTimeAsync(1200);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(await screen.findByRole('button', { name: 'Retry transcription' })).toBeInTheDocument();
+
+    const callsAfterCap = vi.mocked(api.getEpisodeStatus).mock.calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(vi.mocked(api.getEpisodeStatus).mock.calls.length).toBe(callsAfterCap);
+  });
+
   it('toggles sort order and re-fetches with the new sort', async () => {
     vi.mocked(api.listEpisodes).mockResolvedValue([makeEpisode({ id: 1, title: 'Episode' })]);
     renderEpisodes();

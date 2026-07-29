@@ -166,6 +166,25 @@ def test_start_transcription(client, session, monkeypatch):
     assert calls == [episode.id]
 
 
+def test_start_transcription_retries_after_failure(client, session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(
+        session,
+        podcast,
+        download_status=DownloadStatus.downloaded,
+        local_audio_path="1.mp3",
+        transcript_status=TranscriptStatus.failed,
+    )
+
+    calls = []
+    monkeypatch.setattr("app.api.episodes.retry_transcription", lambda episode_id: calls.append(episode_id))
+
+    response = client.post(f"/api/episodes/{episode.id}/transcribe")
+    assert response.status_code == 202
+    assert response.json()["transcript_status"] == "pending"
+    assert calls == [episode.id]
+
+
 def test_start_transcription_missing_episode_returns_404(client):
     response = client.post("/api/episodes/999/transcribe")
     assert response.status_code == 404

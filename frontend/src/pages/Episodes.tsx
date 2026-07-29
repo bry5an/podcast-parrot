@@ -140,16 +140,29 @@ export function Episodes() {
 
   const pollTranscriptStatus = useCallback((episodeId: number) => {
     if (transcriptPollTimers.current[episodeId]) return;
+    let consecutiveErrors = 0;
     const timer = window.setInterval(async () => {
-      const status = await api.getEpisodeStatus(episodeId);
-      if (status.transcript_status !== 'pending') {
-        window.clearInterval(transcriptPollTimers.current[episodeId]);
-        delete transcriptPollTimers.current[episodeId];
-        refreshRef.current();
-      } else {
-        setEpisodes((prev) =>
-          prev.map((e) => (e.id === episodeId ? { ...e, transcript_status: status.transcript_status } : e)),
-        );
+      try {
+        const status = await api.getEpisodeStatus(episodeId);
+        consecutiveErrors = 0;
+        if (status.transcript_status !== 'pending') {
+          window.clearInterval(transcriptPollTimers.current[episodeId]);
+          delete transcriptPollTimers.current[episodeId];
+          refreshRef.current();
+        } else {
+          setEpisodes((prev) =>
+            prev.map((e) => (e.id === episodeId ? { ...e, transcript_status: status.transcript_status } : e)),
+          );
+        }
+      } catch {
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= 5) {
+          window.clearInterval(transcriptPollTimers.current[episodeId]);
+          delete transcriptPollTimers.current[episodeId];
+          setEpisodes((prev) =>
+            prev.map((e) => (e.id === episodeId ? { ...e, transcript_status: 'failed' } : e)),
+          );
+        }
       }
     }, 1200);
     transcriptPollTimers.current[episodeId] = timer;
@@ -288,7 +301,8 @@ export function Episodes() {
                   {ep.download_status === 'downloaded' &&
                     (ep.transcript_status === 'none' ||
                       ep.transcript_status === 'queued' ||
-                      ep.transcript_status === 'pending') && (
+                      ep.transcript_status === 'pending' ||
+                      ep.transcript_status === 'failed') && (
                       <TranscribeButton episode={ep} onTranscribe={() => startTranscription(ep)} />
                     )}
                   <DownloadButton episode={ep} onDownload={() => startDownload(ep)} onRemove={() => removeDownload(ep)} />
@@ -354,9 +368,17 @@ function TranscribeButton({ episode, onTranscribe }: { episode: Episode; onTrans
       </div>
     );
   }
+  const isRetry = episode.transcript_status === 'queued' || episode.transcript_status === 'failed';
   return (
-    <button onClick={onTranscribe} style={downloadBtnStyle} title={episode.transcript_status === 'queued' ? 'Retry transcription' : 'Transcribe'}>
-      <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.7}>
+    <button onClick={onTranscribe} style={downloadBtnStyle} title={isRetry ? 'Retry transcription' : 'Transcribe'}>
+      <svg
+        width="15"
+        height="15"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke={episode.transcript_status === 'failed' ? 'oklch(0.5 0.13 25)' : 'currentColor'}
+        strokeWidth={1.7}
+      >
         <path d="M5 4h10v12H5z" />
         <path d="M7 8h6M7 11h6M7 14h3" />
       </svg>

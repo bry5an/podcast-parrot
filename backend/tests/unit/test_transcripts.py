@@ -59,7 +59,7 @@ def test_ingest_transcript_queues_when_model_missing(session, monkeypatch):
     assert session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first() is None
 
 
-def test_ingest_transcript_reverts_to_original_status_on_generic_asr_failure(session, monkeypatch):
+def test_ingest_transcript_marks_failed_on_generic_asr_failure(session, monkeypatch):
     podcast = _make_podcast(session)
     episode = _make_episode(session, podcast, transcript_status=TranscriptStatus.none)
 
@@ -71,10 +71,25 @@ def test_ingest_transcript_reverts_to_original_status_on_generic_asr_failure(ses
     ingest_transcript(session, episode, audio_path=Path("/fake/audio.mp3"))
 
     session.refresh(episode)
-    assert episode.transcript_status == TranscriptStatus.none
+    assert episode.transcript_status == TranscriptStatus.failed
 
 
-def test_ingest_transcript_reverts_to_original_status_on_furigana_failure(session, monkeypatch):
+def test_ingest_transcript_marks_failed_on_empty_cues(session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast, transcript_status=TranscriptStatus.none)
+
+    def fake_transcribe_audio(*args, **kwargs):
+        return [], "ja"
+
+    monkeypatch.setattr("app.services.transcripts.transcribe_audio", fake_transcribe_audio)
+
+    ingest_transcript(session, episode, audio_path=Path("/fake/audio.mp3"))
+
+    session.refresh(episode)
+    assert episode.transcript_status == TranscriptStatus.failed
+
+
+def test_ingest_transcript_marks_failed_on_furigana_failure(session, monkeypatch):
     podcast = _make_podcast(session)
     episode = _make_episode(session, podcast, transcript_status=TranscriptStatus.none)
 
@@ -90,7 +105,7 @@ def test_ingest_transcript_reverts_to_original_status_on_furigana_failure(sessio
     ingest_transcript(session, episode, audio_path=Path("/fake/audio.mp3"))
 
     session.refresh(episode)
-    assert episode.transcript_status == TranscriptStatus.none
+    assert episode.transcript_status == TranscriptStatus.failed
     assert session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first() is None
     assert session.exec(select(Sentence)).first() is None
 
