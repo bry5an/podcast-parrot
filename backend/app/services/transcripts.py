@@ -59,17 +59,22 @@ def build_transcript(session: Session, episode: Episode) -> Transcript | None:
     session.add(transcript)
     session.flush()
 
-    for index, cue in enumerate(cues):
-        session.add(
-            Sentence(
-                transcript_id=transcript.id,
-                index=index,
-                start_time=cue.start_time,
-                end_time=cue.end_time,
-                text=cue.text,
-                segments=build_segments(cue.text, language),
+    try:
+        for index, cue in enumerate(cues):
+            session.add(
+                Sentence(
+                    transcript_id=transcript.id,
+                    index=index,
+                    start_time=cue.start_time,
+                    end_time=cue.end_time,
+                    text=cue.text,
+                    segments=build_segments(cue.text, language),
+                )
             )
-        )
+    except Exception:
+        logger.exception("Failed to build segments for episode %s", episode.id)
+        session.rollback()
+        return None
 
     episode.transcript_status = TranscriptStatus.full
     session.add(episode)
