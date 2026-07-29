@@ -92,7 +92,11 @@ export const api = {
     request<EpisodeStatus>(`/api/episodes/${episodeId}/transcribe`, { method: 'POST' }),
   getEpisodeStatus: (episodeId: number) => request<EpisodeStatus>(`/api/episodes/${episodeId}/status`),
   getTranscript: (episodeId: number) => request<Transcript>(`/api/episodes/${episodeId}/transcript`),
-  audioUrl: (episodeId: number) => `/api/episodes/${episodeId}/audio`,
+  audioUrl: (episodeId: number) => {
+    const token = window.KOTOBA_AUTH_TOKEN;
+    const query = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `/api/episodes/${episodeId}/audio${query}`;
+  },
 
   updatePosition: (profileId: number, episodeId: number, positionSeconds: number) =>
     request<void>(`/api/profiles/${profileId}/episodes/${episodeId}/position`, {
