@@ -22,3 +22,6 @@ frontend/dist/
 
 # Whisper
 **/ggml-base.bin
+
+# whisper.cpp source + build cache (desktop/scripts/prepare_sidecars.sh)
+/.cache/
