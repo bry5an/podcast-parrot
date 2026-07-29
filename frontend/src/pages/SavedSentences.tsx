@@ -22,6 +22,7 @@ export function SavedSentences() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const [currentTime, setCurrentTime] = useState(0);
+  const [repeatIds, setRepeatIds] = useState<Set<number>>(new Set());
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeClipRef = useRef<SavedSentence | null>(null);
@@ -58,6 +59,15 @@ export function SavedSentences() {
     if (!audio || playingId !== clip.id) return;
     audio.currentTime = sentence.start_time;
     setCurrentTime(sentence.start_time);
+  };
+
+  const toggleRepeat = (clipId: number) => {
+    setRepeatIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clipId)) next.delete(clipId);
+      else next.add(clipId);
+      return next;
+    });
   };
 
   const startRename = (clip: SavedSentence) => {
@@ -125,6 +135,23 @@ export function SavedSentences() {
                   <path d="M6 4l10 6-10 6V4z" />
                 </svg>
               )}
+            </button>
+
+            <button
+              onClick={() => toggleRepeat(clip.id)}
+              disabled={!clip.audio_available}
+              title="Repeat this clip"
+              style={{
+                ...repeatBtnStyle,
+                ...(repeatIds.has(clip.id) ? repeatBtnActiveStyle : {}),
+                opacity: clip.audio_available ? 1 : 0.35,
+              }}
+              data-testid={`repeat-toggle-${clip.id}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.7}>
+                <path d="M4 7h9a3 3 0 0 1 3 3v1M16 13H7a3 3 0 0 1-3-3V9" />
+                <path d="M14 4l3 3-3 3M6 16l-3-3 3-3" />
+              </svg>
             </button>
 
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -222,8 +249,13 @@ export function SavedSentences() {
           const clip = activeClipRef.current;
           setCurrentTime(e.currentTarget.currentTime);
           if (clip && e.currentTarget.currentTime >= clip.end_time) {
-            e.currentTarget.pause();
-            setPlayingId(null);
+            if (repeatIds.has(clip.id)) {
+              e.currentTarget.currentTime = clip.start_time;
+              setCurrentTime(clip.start_time);
+            } else {
+              e.currentTarget.pause();
+              setPlayingId(null);
+            }
           }
         }}
         style={{ display: 'none' }}
@@ -235,6 +267,8 @@ export function SavedSentences() {
 const backBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer', padding: '6px 4px', font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.55)' };
 const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '13px 14px', borderRadius: 13, background: '#fff', border: '1px solid rgba(32,30,26,.08)' };
 const playBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: 'none', background: '#211f1b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
+const repeatBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.6)' };
+const repeatBtnActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', borderColor: 'oklch(0.42 0.06 195 / 0.4)', color: 'oklch(0.42 0.06 195)' };
 const deleteBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.12)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.5)' };
 const nameInputStyle: React.CSSProperties = { width: '100%', height: 28, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(32,30,26,.2)', font: '600 14px/1 IBM Plex Sans' };
 const clipSentenceRowStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 8, cursor: 'pointer', font: '500 13px/1.7 "IBM Plex Sans", sans-serif' };

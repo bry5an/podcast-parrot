@@ -125,6 +125,29 @@ describe('SavedSentences', () => {
     expect(pauseSpy).toHaveBeenCalled();
   });
 
+  it('loops back to start_time at end_time when repeat is enabled, instead of stopping', async () => {
+    vi.mocked(api.listSavedSentences).mockResolvedValue([makeClip()]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByTestId('repeat-toggle-1'));
+    await user.click(await screen.findByTestId('play-saved-sentence-1'));
+
+    const audio = screen.getByTestId('saved-sentence-audio') as HTMLAudioElement;
+    Object.defineProperty(audio, 'duration', { value: 10, configurable: true });
+    vi.spyOn(audio, 'play').mockResolvedValue();
+    const pauseSpy = vi.spyOn(audio, 'pause').mockImplementation(() => {});
+    fireEvent.loadedMetadata(audio);
+
+    audio.currentTime = 2;
+    fireEvent.timeUpdate(audio);
+
+    expect(pauseSpy).not.toHaveBeenCalled();
+    expect(audio.currentTime).toBe(0);
+    // still "playing" (transcript stays expanded) rather than stopping
+    expect(screen.getByTestId('clip-sentence-1-0')).toBeInTheDocument();
+  });
+
   it('expands into a synced sentence transcript while playing and highlights the active sentence', async () => {
     vi.mocked(api.listSavedSentences).mockResolvedValue([makeClip()]);
     const user = userEvent.setup();
