@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Episodes } from './Episodes';
 import { ProfileProvider } from '../state/ProfileContext';
+import { ToastProvider } from '../state/ToastContext';
+import { TranscriptionProvider } from '../state/TranscriptionContext';
 import { api } from '../lib/api';
 import type { Episode, Profile } from '../lib/types';
 
@@ -46,10 +48,17 @@ function renderEpisodes() {
   return render(
     <MemoryRouter initialEntries={['/library/podcasts/1/episodes']}>
       <ProfileProvider>
-        <Routes>
-          <Route path="/library/podcasts/:podcastId/episodes" element={<Episodes />} />
-          <Route path="/library/podcasts/:podcastId/episodes/:episodeId/player" element={<PlayerLocationProbe />} />
-        </Routes>
+        <ToastProvider>
+          <TranscriptionProvider>
+            <Routes>
+              <Route path="/library/podcasts/:podcastId/episodes" element={<Episodes />} />
+              <Route
+                path="/library/podcasts/:podcastId/episodes/:episodeId/player"
+                element={<PlayerLocationProbe />}
+              />
+            </Routes>
+          </TranscriptionProvider>
+        </ToastProvider>
       </ProfileProvider>
     </MemoryRouter>,
   );
@@ -197,6 +206,46 @@ describe('Episodes', () => {
     const callsAfterCap = vi.mocked(api.getEpisodeStatus).mock.calls.length;
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(vi.mocked(api.getEpisodeStatus).mock.calls.length).toBe(callsAfterCap);
+  });
+
+  it('keeps polling after the user navigates away, and shows a toast once transcription finishes', async () => {
+    vi.mocked(api.listEpisodes).mockResolvedValue([
+      makeEpisode({ id: 1, title: 'Untranscribed episode', download_status: 'downloaded', transcript_status: 'none' }),
+    ]);
+    vi.mocked(api.transcribeEpisode).mockResolvedValue({ id: 1, download_status: 'downloaded', transcript_status: 'pending' });
+    vi.mocked(api.getEpisodeStatus).mockResolvedValue({ id: 1, download_status: 'downloaded', transcript_status: 'full' });
+
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      render(
+        <MemoryRouter initialEntries={['/library/podcasts/1/episodes']}>
+          <ProfileProvider>
+            <ToastProvider>
+              <TranscriptionProvider>
+                <Routes>
+                  <Route path="/library/podcasts/:podcastId/episodes" element={<Episodes />} />
+                  <Route path="/library" element={<div>Library page</div>} />
+                </Routes>
+              </TranscriptionProvider>
+            </ToastProvider>
+          </ProfileProvider>
+        </MemoryRouter>,
+      );
+
+      await screen.findByText('Untranscribed episode');
+      await userEvent.click(screen.getByRole('button', { name: 'Transcribe' }));
+
+      // Navigate away — this unmounts Episodes, which used to own the poller.
+      await userEvent.click(screen.getByRole('button', { name: /My podcasts/ }));
+      expect(await screen.findByText('Library page')).toBeInTheDocument();
+      expect(screen.queryByText('Untranscribed episode')).not.toBeInTheDocument();
+
+      await vi.advanceTimersByTimeAsync(1200);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(await screen.findByText('Transcription complete: Untranscribed episode')).toBeInTheDocument();
   });
 
   it('toggles sort order and re-fetches with the new sort', async () => {

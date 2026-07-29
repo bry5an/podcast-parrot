@@ -5,12 +5,18 @@ import './fonts.css';
 import './index.css';
 import App from './App.tsx';
 import { ProfileProvider } from './state/ProfileContext';
+import { ToastProvider } from './state/ToastContext';
+import { TranscriptionProvider } from './state/TranscriptionContext';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <ProfileProvider>
-        <App />
+        <ToastProvider>
+          <TranscriptionProvider>
+            <App />
+          </TranscriptionProvider>
+        </ToastProvider>
       </ProfileProvider>
     </BrowserRouter>
   </StrictMode>,
