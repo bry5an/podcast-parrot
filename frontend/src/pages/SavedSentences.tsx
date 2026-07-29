@@ -22,6 +22,9 @@ export function SavedSentences() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const [currentTime, setCurrentTime] = useState(0);
+  // Per clip: 'clip' repeats the whole clip, a number repeats just that sentence id.
+  // Mutually exclusive per clip — setting one clears the other.
+  const [repeatMode, setRepeatMode] = useState<Map<number, 'clip' | number>>(new Map());
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeClipRef = useRef<SavedSentence | null>(null);
@@ -58,6 +61,24 @@ export function SavedSentences() {
     if (!audio || playingId !== clip.id) return;
     audio.currentTime = sentence.start_time;
     setCurrentTime(sentence.start_time);
+  };
+
+  const toggleClipRepeat = (clipId: number) => {
+    setRepeatMode((prev) => {
+      const next = new Map(prev);
+      if (next.get(clipId) === 'clip') next.delete(clipId);
+      else next.set(clipId, 'clip');
+      return next;
+    });
+  };
+
+  const toggleSentenceRepeat = (clipId: number, sentenceId: number) => {
+    setRepeatMode((prev) => {
+      const next = new Map(prev);
+      if (next.get(clipId) === sentenceId) next.delete(clipId);
+      else next.set(clipId, sentenceId);
+      return next;
+    });
   };
 
   const startRename = (clip: SavedSentence) => {
@@ -127,6 +148,23 @@ export function SavedSentences() {
               )}
             </button>
 
+            <button
+              onClick={() => toggleClipRepeat(clip.id)}
+              disabled={!clip.audio_available}
+              title="Repeat this clip"
+              style={{
+                ...repeatBtnStyle,
+                ...(repeatMode.get(clip.id) === 'clip' ? repeatBtnActiveStyle : {}),
+                opacity: clip.audio_available ? 1 : 0.35,
+              }}
+              data-testid={`repeat-toggle-${clip.id}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.7}>
+                <path d="M4 7h9a3 3 0 0 1 3 3v1M16 13H7a3 3 0 0 1-3-3V9" />
+                <path d="M14 4l3 3-3 3M6 16l-3-3 3-3" />
+              </svg>
+            </button>
+
             <div style={{ flex: 1, minWidth: 0 }}>
               {editingId === clip.id ? (
                 <input
@@ -165,12 +203,37 @@ export function SavedSentences() {
                     return clip.sentences.map((s, i) => (
                       <div
                         key={s.id}
-                        onClick={() => seekToSentence(clip, s)}
                         data-testid={`clip-sentence-${clip.id}-${s.index}`}
                         data-active={i === activeIdx}
-                        style={{ ...clipSentenceRowStyle, ...(i === activeIdx ? clipSentenceRowActiveStyle : {}) }}
+                        style={{
+                          ...clipSentenceRowStyle,
+                          ...(i === activeIdx ? clipSentenceRowActiveStyle : {}),
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                        }}
                       >
-                        <Ruby segments={s.segments} showFurigana={showFurigana} />
+                        <span onClick={() => seekToSentence(clip, s)} style={{ cursor: 'pointer', flex: 1 }}>
+                          <Ruby segments={s.segments} showFurigana={showFurigana} />
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSentenceRepeat(clip.id, s.id);
+                          }}
+                          title="Repeat this sentence"
+                          style={{
+                            ...sentenceRepeatBtnStyle,
+                            ...(repeatMode.get(clip.id) === s.id ? sentenceRepeatBtnActiveStyle : {}),
+                          }}
+                          data-testid={`repeat-sentence-${clip.id}-${s.index}`}
+                        >
+                          <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.9}>
+                            <path d="M4 7h9a3 3 0 0 1 3 3v1M16 13H7a3 3 0 0 1-3-3V9" />
+                            <path d="M14 4l3 3-3 3M6 16l-3-3 3-3" />
+                          </svg>
+                        </button>
                       </div>
                     ));
                   })()}
@@ -220,10 +283,28 @@ export function SavedSentences() {
         }}
         onTimeUpdate={(e) => {
           const clip = activeClipRef.current;
-          setCurrentTime(e.currentTarget.currentTime);
-          if (clip && e.currentTarget.currentTime >= clip.end_time) {
-            e.currentTarget.pause();
-            setPlayingId(null);
+          const t = e.currentTarget.currentTime;
+          setCurrentTime(t);
+          if (!clip) return;
+
+          const mode = repeatMode.get(clip.id);
+          if (typeof mode === 'number') {
+            const sentence = clip.sentences.find((s) => s.id === mode);
+            if (sentence && t >= sentence.end_time) {
+              e.currentTarget.currentTime = sentence.start_time;
+              setCurrentTime(sentence.start_time);
+              return;
+            }
+          }
+
+          if (t >= clip.end_time) {
+            if (mode === 'clip') {
+              e.currentTarget.currentTime = clip.start_time;
+              setCurrentTime(clip.start_time);
+            } else {
+              e.currentTarget.pause();
+              setPlayingId(null);
+            }
           }
         }}
         style={{ display: 'none' }}
@@ -235,7 +316,11 @@ export function SavedSentences() {
 const backBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer', padding: '6px 4px', font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.55)' };
 const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '13px 14px', borderRadius: 13, background: '#fff', border: '1px solid rgba(32,30,26,.08)' };
 const playBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: 'none', background: '#211f1b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
+const repeatBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.6)' };
+const repeatBtnActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', borderColor: 'oklch(0.42 0.06 195 / 0.4)', color: 'oklch(0.42 0.06 195)' };
 const deleteBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.12)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.5)' };
 const nameInputStyle: React.CSSProperties = { width: '100%', height: 28, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(32,30,26,.2)', font: '600 14px/1 IBM Plex Sans' };
-const clipSentenceRowStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 8, cursor: 'pointer', font: '500 13px/1.7 "IBM Plex Sans", sans-serif' };
+const clipSentenceRowStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 8, font: '500 13px/1.7 "IBM Plex Sans", sans-serif' };
 const clipSentenceRowActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', boxShadow: 'inset 3px 0 0 oklch(0.42 0.06 195)' };
+const sentenceRepeatBtnStyle: React.CSSProperties = { width: 22, height: 22, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.45)' };
+const sentenceRepeatBtnActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', borderColor: 'oklch(0.42 0.06 195 / 0.4)', color: 'oklch(0.42 0.06 195)' };
