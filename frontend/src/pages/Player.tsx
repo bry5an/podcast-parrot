@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api';
 import { Ruby } from '../components/Ruby';
 import { useProfiles } from '../state/ProfileContext';
+import { useToast } from '../state/ToastContext';
 import { invokeTauri, listenTauri } from '../lib/tauri';
 import { eventMatchesModifier, loadKeymap, loadSeekStepSeconds, normalizeKey } from '../lib/keybindings';
 import type { Episode, Podcast, Sentence, Transcript } from '../lib/types';
@@ -38,6 +39,7 @@ export function Player() {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentProfile, loading: profileLoading } = useProfiles();
+  const { showToast } = useToast();
 
   const [podcast, setPodcast] = useState<Podcast | null>(
     (location.state as { podcast?: Podcast } | null)?.podcast ?? null,
@@ -57,6 +59,11 @@ export function Player() {
   const [showFurigana, setShowFurigana] = useState(true);
   const [, setShadowed] = useState<Set<number>>(new Set());
   const [doneToday, setDoneToday] = useState(0);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectionAnchor, setSelectionAnchor] = useState<number | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
+  const [saveName, setSaveName] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -313,6 +320,56 @@ export function Player() {
   const jumpToRef = useRef(jumpTo);
   jumpToRef.current = jumpTo;
 
+  // Click-anchor + extend selection (like text selection): the first click in
+  // select mode sets the anchor; every click after that moves the far end,
+  // clamped toward the anchor so the contiguous span never exceeds 5 sentences.
+  const handleSelectClick = (i: number) => {
+    if (selectionAnchor === null) {
+      setSelectionAnchor(i);
+      setSelectionEnd(i);
+      return;
+    }
+    const clamped = i < selectionAnchor ? Math.max(i, selectionAnchor - 4) : Math.min(i, selectionAnchor + 4);
+    setSelectionEnd(clamped);
+  };
+
+  const clearSelection = () => {
+    setSelectionAnchor(null);
+    setSelectionEnd(null);
+    setSaveName('');
+  };
+
+  const toggleSelectMode = () => {
+    setSelectMode((v) => {
+      if (v) clearSelection();
+      return !v;
+    });
+  };
+
+  const saveSelection = async () => {
+    if (!currentProfile || !episode || selectionAnchor === null || selectionEnd === null) return;
+    const name = saveName.trim();
+    if (!name) return;
+    const min = Math.min(selectionAnchor, selectionEnd);
+    const max = Math.max(selectionAnchor, selectionEnd);
+    setSaving(true);
+    try {
+      await api.createSavedSentence(currentProfile.id, {
+        episode_id: episode.id,
+        name,
+        start_sentence_id: sentences[min].id,
+        end_sentence_id: sentences[max].id,
+      });
+      showToast(`Saved "${name}"`);
+      setSelectMode(false);
+      clearSelection();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to save clip', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -385,6 +442,15 @@ export function Player() {
                 <span style={sidebarLabelStyle}>Furigana</span>
                 <span style={sidebarValueStyle}>{showFurigana ? 'On' : 'Off'}</span>
               </button>
+
+              <button
+                onClick={toggleSelectMode}
+                style={{ ...sidebarButtonStyle, ...(selectMode ? sidebarButtonActiveStyle : {}) }}
+                data-testid="select-mode-toggle"
+              >
+                <span style={sidebarLabelStyle}>Select</span>
+                <span style={sidebarValueStyle}>{selectMode ? 'On' : 'Off'}</span>
+              </button>
             </div>
 
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -402,21 +468,61 @@ export function Player() {
                     Loading transcript…
                   </div>
                 )}
-                {sentences.map((s, i) => (
-                  <div
-                    key={s.index}
-                    ref={(el) => {
-                      rowRefs.current[i] = el;
-                    }}
-                    onClick={() => jumpTo(i)}
-                    data-testid={`sentence-${s.index}`}
-                    data-active={i === activeIndex}
-                    style={{ ...sentenceRowStyle, ...(i === activeIndex ? sentenceRowActiveStyle : {}) }}
-                  >
-                    <Ruby segments={s.segments} showFurigana={showFurigana} />
-                  </div>
-                ))}
+                {sentences.map((s, i) => {
+                  const selMin =
+                    selectionAnchor !== null && selectionEnd !== null ? Math.min(selectionAnchor, selectionEnd) : null;
+                  const selMax =
+                    selectionAnchor !== null && selectionEnd !== null ? Math.max(selectionAnchor, selectionEnd) : null;
+                  const isSelected = selMin !== null && selMax !== null && i >= selMin && i <= selMax;
+                  return (
+                    <div
+                      key={s.index}
+                      ref={(el) => {
+                        rowRefs.current[i] = el;
+                      }}
+                      onClick={() => (selectMode ? handleSelectClick(i) : jumpTo(i))}
+                      data-testid={`sentence-${s.index}`}
+                      data-active={i === activeIndex}
+                      data-selected={isSelected}
+                      style={{
+                        ...sentenceRowStyle,
+                        ...(i === activeIndex ? sentenceRowActiveStyle : {}),
+                        ...(isSelected ? sentenceRowSelectedStyle : {}),
+                      }}
+                    >
+                      <Ruby segments={s.segments} showFurigana={showFurigana} />
+                    </div>
+                  );
+                })}
               </div>
+
+              {selectMode && selectionAnchor !== null && selectionEnd !== null && (
+                <div style={saveBarStyle} data-testid="save-selection-bar">
+                  <span style={saveBarLabelStyle}>
+                    {Math.abs(selectionEnd - selectionAnchor) + 1} sentence
+                    {Math.abs(selectionEnd - selectionAnchor) + 1 > 1 ? 's' : ''} selected
+                  </span>
+                  <input
+                    type="text"
+                    value={saveName}
+                    onChange={(e) => setSaveName(e.target.value)}
+                    placeholder="Name this clip"
+                    style={saveNameInputStyle}
+                    data-testid="save-name-input"
+                  />
+                  <button onClick={clearSelection} style={cancelBtnStyle} data-testid="cancel-selection">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveSelection}
+                    disabled={saving || !saveName.trim()}
+                    style={{ ...saveBtnStyle, opacity: saving || !saveName.trim() ? 0.5 : 1 }}
+                    data-testid="save-selection"
+                  >
+                    {saving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              )}
 
               <div style={{ flex: 'none', borderTop: '1px solid rgba(32,30,26,.08)', padding: '14px 30px', display: 'flex', alignItems: 'center', gap: 14 }}>
                 <button onClick={togglePlay} style={playBtnStyle} disabled={!episode} data-testid="play-pause">
@@ -503,6 +609,13 @@ const sidebarValueStyle: React.CSSProperties = { font: '600 13px/1 IBM Plex Sans
 const emptyStateStyle: React.CSSProperties = { margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgba(32,30,26,.16)', borderRadius: 16 };
 const sentenceRowStyle: React.CSSProperties = { padding: '10px 14px', borderRadius: 10, cursor: 'pointer', font: '500 16px/1.9 "IBM Plex Sans", sans-serif' };
 const sentenceRowActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', boxShadow: 'inset 3px 0 0 oklch(0.42 0.06 195)' };
+const sentenceRowSelectedStyle: React.CSSProperties = { background: 'oklch(0.75 0.13 80 / 0.22)', boxShadow: 'inset 3px 0 0 oklch(0.6 0.15 80)' };
+const sidebarButtonActiveStyle: React.CSSProperties = { background: 'oklch(0.75 0.13 80 / 0.16)', borderColor: 'oklch(0.6 0.15 80 / 0.4)' };
+const saveBarStyle: React.CSSProperties = { flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 30px', borderTop: '1px solid rgba(32,30,26,.08)', background: 'oklch(0.75 0.13 80 / 0.08)' };
+const saveBarLabelStyle: React.CSSProperties = { font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.7)', flex: 'none' };
+const saveNameInputStyle: React.CSSProperties = { flex: 1, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(32,30,26,.14)', font: '500 13px/1 IBM Plex Sans' };
+const cancelBtnStyle: React.CSSProperties = { height: 34, padding: '0 14px', borderRadius: 8, border: '1px solid rgba(32,30,26,.14)', background: '#fff', cursor: 'pointer', font: '600 12.5px/1 IBM Plex Sans', color: 'rgba(32,30,26,.6)' };
+const saveBtnStyle: React.CSSProperties = { height: 34, padding: '0 16px', borderRadius: 8, border: 'none', background: '#211f1b', color: '#fff', cursor: 'pointer', font: '600 12.5px/1 IBM Plex Sans' };
 const playBtnStyle: React.CSSProperties = { width: 42, height: 42, flex: 'none', borderRadius: '50%', border: 'none', background: '#211f1b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
 const timeLabelStyle: React.CSSProperties = { font: '500 11px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)', flex: 'none', minWidth: 34, textAlign: 'center' };
 const loopBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.6)' };

@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Player } from './Player';
 import { ProfileProvider } from '../state/ProfileContext';
+import { ToastProvider } from '../state/ToastContext';
 import { api } from '../lib/api';
 import { DEFAULT_KEYMAP } from '../lib/keybindings';
 import type { Episode, Podcast, Profile, Transcript } from '../lib/types';
@@ -59,7 +60,8 @@ const transcript: Transcript = {
   ],
 };
 
-function renderPlayer(episodeOverride: Episode = episode, autoplay = false) {
+function renderPlayer(episodeOverride: Episode = episode, autoplay = false, transcriptOverride?: Transcript) {
+  if (transcriptOverride) vi.mocked(api.getTranscript).mockResolvedValue(transcriptOverride);
   return render(
     <MemoryRouter
       initialEntries={[
@@ -70,9 +72,11 @@ function renderPlayer(episodeOverride: Episode = episode, autoplay = false) {
       ]}
     >
       <ProfileProvider>
-        <Routes>
-          <Route path="/library/podcasts/:podcastId/episodes/:episodeId/player" element={<Player />} />
-        </Routes>
+        <ToastProvider>
+          <Routes>
+            <Route path="/library/podcasts/:podcastId/episodes/:episodeId/player" element={<Player />} />
+          </Routes>
+        </ToastProvider>
       </ProfileProvider>
     </MemoryRouter>,
   );
@@ -87,6 +91,20 @@ describe('Player', () => {
     vi.mocked(api.getShadowSummary).mockResolvedValue({ doneToday: 0, total: 3 });
     vi.mocked(api.logShadowEvent).mockResolvedValue(undefined);
     vi.mocked(api.updatePosition).mockResolvedValue(undefined);
+    vi.mocked(api.createSavedSentence).mockResolvedValue({
+      id: 1,
+      profile_id: 1,
+      episode_id: 42,
+      podcast_id: 1,
+      name: 'clip',
+      podcast_title: 'Nihongo News',
+      episode_title: 'Episode One',
+      text: '一つ目',
+      start_time: 0,
+      end_time: 2,
+      audio_available: true,
+      created_at: '2026-01-01T00:00:00Z',
+    });
   });
 
   it('renders the sidebar badges and the sentence list with furigana on by default', async () => {
@@ -375,5 +393,115 @@ describe('Player', () => {
 
     fireEvent.keyDown(window, { key: 'p' });
     expect(playSpy).toHaveBeenCalled();
+  });
+
+  describe('saving sentence clips', () => {
+    it('clicking a row in select mode selects it instead of jumping/playing', async () => {
+      const user = userEvent.setup();
+      renderPlayer();
+      await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+      const audio = screen.getByTestId('audio') as HTMLAudioElement;
+      const playSpy = vi.spyOn(audio, 'play').mockResolvedValue();
+
+      await user.click(screen.getByTestId('select-mode-toggle'));
+      await user.click(screen.getByTestId('sentence-0'));
+
+      expect(playSpy).not.toHaveBeenCalled();
+      expect(screen.getByTestId('sentence-0')).toHaveAttribute('data-selected', 'true');
+      expect(screen.getByTestId('sentence-1')).toHaveAttribute('data-selected', 'false');
+      expect(await screen.findByTestId('save-selection-bar')).toHaveTextContent('1 sentence selected');
+    });
+
+    it('a second click extends the contiguous selection', async () => {
+      const user = userEvent.setup();
+      renderPlayer();
+      await waitFor(() => expect(screen.getByTestId('sentence-2')).toBeInTheDocument());
+
+      await user.click(screen.getByTestId('select-mode-toggle'));
+      await user.click(screen.getByTestId('sentence-0'));
+      await user.click(screen.getByTestId('sentence-2'));
+
+      expect(screen.getByTestId('sentence-0')).toHaveAttribute('data-selected', 'true');
+      expect(screen.getByTestId('sentence-1')).toHaveAttribute('data-selected', 'true');
+      expect(screen.getByTestId('sentence-2')).toHaveAttribute('data-selected', 'true');
+      expect(screen.getByTestId('save-selection-bar')).toHaveTextContent('3 sentences selected');
+    });
+
+    it('clamps the selection to 5 contiguous sentences when extending further', async () => {
+      const user = userEvent.setup();
+      const longTranscript: Transcript = {
+        ...transcript,
+        sentences: Array.from({ length: 8 }, (_, i) => ({
+          id: 200 + i,
+          index: i,
+          start_time: i,
+          end_time: i + 1,
+          text: `s${i}`,
+          segments: [{ base: `s${i}`, reading: '' }],
+        })),
+      };
+      renderPlayer(episode, false, longTranscript);
+      await waitFor(() => expect(screen.getByTestId('sentence-7')).toBeInTheDocument());
+
+      await user.click(screen.getByTestId('select-mode-toggle'));
+      await user.click(screen.getByTestId('sentence-0'));
+      await user.click(screen.getByTestId('sentence-7'));
+
+      expect(screen.getByTestId('save-selection-bar')).toHaveTextContent('5 sentences selected');
+      expect(screen.getByTestId('sentence-4')).toHaveAttribute('data-selected', 'true');
+      expect(screen.getByTestId('sentence-5')).toHaveAttribute('data-selected', 'false');
+    });
+
+    it('saves the selection with a name and shows a success toast', async () => {
+      const user = userEvent.setup();
+      renderPlayer();
+      await waitFor(() => expect(screen.getByTestId('sentence-1')).toBeInTheDocument());
+
+      await user.click(screen.getByTestId('select-mode-toggle'));
+      await user.click(screen.getByTestId('sentence-0'));
+      await user.click(screen.getByTestId('sentence-1'));
+      await user.type(screen.getByTestId('save-name-input'), 'Greeting');
+      await user.click(screen.getByTestId('save-selection'));
+
+      await waitFor(() =>
+        expect(api.createSavedSentence).toHaveBeenCalledWith(1, {
+          episode_id: 42,
+          name: 'Greeting',
+          start_sentence_id: 100,
+          end_sentence_id: 101,
+        }),
+      );
+      expect(await screen.findByText('Saved "Greeting"')).toBeInTheDocument();
+      expect(screen.queryByTestId('save-selection-bar')).not.toBeInTheDocument();
+    });
+
+    it('shows an error toast and keeps the selection when saving fails', async () => {
+      vi.mocked(api.createSavedSentence).mockRejectedValue(new Error('422 boom'));
+      const user = userEvent.setup();
+      renderPlayer();
+      await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+      await user.click(screen.getByTestId('select-mode-toggle'));
+      await user.click(screen.getByTestId('sentence-0'));
+      await user.type(screen.getByTestId('save-name-input'), 'Oops');
+      await user.click(screen.getByTestId('save-selection'));
+
+      expect(await screen.findByText('422 boom')).toBeInTheDocument();
+      expect(screen.getByTestId('save-selection-bar')).toBeInTheDocument();
+    });
+
+    it('Cancel clears the selection', async () => {
+      const user = userEvent.setup();
+      renderPlayer();
+      await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+      await user.click(screen.getByTestId('select-mode-toggle'));
+      await user.click(screen.getByTestId('sentence-0'));
+      expect(screen.getByTestId('save-selection-bar')).toBeInTheDocument();
+
+      await user.click(screen.getByTestId('cancel-selection'));
+      expect(screen.queryByTestId('save-selection-bar')).not.toBeInTheDocument();
+    });
   });
 });

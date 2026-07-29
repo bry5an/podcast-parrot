@@ -4,6 +4,7 @@ import pytest
 from sqlmodel import SQLModel, create_engine
 
 from app import migrations
+from app.models import SavedSentence  # noqa: F401 — ensures the table is registered on SQLModel.metadata
 
 
 def _engine_for(db_path):
@@ -29,11 +30,12 @@ def test_fresh_database_is_created_and_stamped_at_current_version(tmp_path):
 
 
 def test_pre_migration_database_is_backed_up_and_stamped(tmp_path):
-    # A database created before this runner existed already has every current
-    # table (no schema has changed yet) but user_version 0.
+    # A database created before this runner existed already has every table
+    # that existed at version 1 (no schema had changed yet) but user_version 0.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    SQLModel.metadata.create_all(engine)
+    v1_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "savedsentence"]
+    SQLModel.metadata.create_all(engine, tables=v1_tables)
     assert _user_version(db_path) == 0
 
     migrations.run(db_path, engine)
@@ -66,9 +68,81 @@ def test_newer_schema_version_refuses_to_start(tmp_path):
         migrations.run(db_path, engine)
 
 
+def test_v1_database_gains_a_working_savedsentence_table(tmp_path):
+    # Simulates a real pre-existing install: every v1 table but savedsentence,
+    # stamped at version 1 — exactly what a database created before this
+    # migration shipped looks like.
+    db_path = tmp_path / "kotoba.db"
+    engine = _engine_for(db_path)
+    v1_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "savedsentence"]
+    SQLModel.metadata.create_all(engine, tables=v1_tables)
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    conn.execute("PRAGMA user_version = 1")
+    conn.close()
+
+    migrations.run(db_path, engine)
+
+    assert _user_version(db_path) == migrations.CURRENT_VERSION
+    conn = sqlite3.connect(db_path)
+    tables = {row[0] for row in conn.execute("select name from sqlite_master where type='table'")}
+    assert "savedsentence" in tables
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(savedsentence)")}
+    assert columns == {
+        "id",
+        "profile_id",
+        "episode_id",
+        "name",
+        "start_sentence_id",
+        "end_sentence_id",
+        "created_at",
+    }
+    # The table is actually usable, not just present.
+    conn.execute(
+        "INSERT INTO profile (name, palette_index, direction, show_furigana, created_at) "
+        "VALUES ('Kenji', 0, 'en_ja', 1, '2024-01-01')"
+    )
+    conn.execute(
+        "INSERT INTO podcast (rss_url, title, description, language, source) "
+        "VALUES ('https://x', 'Show', '', 'ja', 'user_added')"
+    )
+    conn.execute(
+        "INSERT INTO episode (podcast_id, guid, title, audio_url, download_status, transcript_status) "
+        "VALUES (1, 'g', 'Ep', 'https://x/a.mp3', 'idle', 'none')"
+    )
+    conn.execute(
+        "INSERT INTO transcript (episode_id, language, source, created_at) "
+        "VALUES (1, 'ja', 'published', '2024-01-01')"
+    )
+    conn.execute(
+        "INSERT INTO sentence (transcript_id, \"index\", start_time, end_time, text, segments) "
+        "VALUES (1, 0, 0, 1, 'hi', '[]')"
+    )
+    conn.execute(
+        "INSERT INTO savedsentence (profile_id, episode_id, name, start_sentence_id, end_sentence_id, created_at) "
+        "VALUES (1, 1, 'clip', 1, 1, '2024-01-01')"
+    )
+    conn.commit()
+    assert conn.execute("SELECT name FROM savedsentence").fetchone() == ("clip",)
+    conn.close()
+
+
+def test_fresh_database_includes_savedsentence_table(tmp_path):
+    db_path = tmp_path / "kotoba.db"
+    engine = _engine_for(db_path)
+
+    migrations.run(db_path, engine)
+
+    conn = sqlite3.connect(db_path)
+    tables = {row[0] for row in conn.execute("select name from sqlite_master where type='table'")}
+    conn.close()
+    assert "savedsentence" in tables
+
+
 def test_pending_migration_is_applied_exactly_once_and_is_idempotent(tmp_path, monkeypatch):
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
+    monkeypatch.setattr(migrations, "CURRENT_VERSION", 1)
+    monkeypatch.setattr(migrations, "MIGRATIONS", {})
     migrations.run(db_path, engine)  # start at version 1
 
     calls = []
@@ -100,6 +174,8 @@ def test_pending_migration_is_applied_exactly_once_and_is_idempotent(tmp_path, m
 def test_failed_migration_step_rolls_back_and_leaves_version_unchanged(tmp_path, monkeypatch):
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
+    monkeypatch.setattr(migrations, "CURRENT_VERSION", 1)
+    monkeypatch.setattr(migrations, "MIGRATIONS", {})
     migrations.run(db_path, engine)
 
     def broken_step(conn: sqlite3.Connection) -> None:

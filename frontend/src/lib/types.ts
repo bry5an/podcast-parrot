@@ -93,6 +93,28 @@ export interface Streak {
   streak: number;
 }
 
+export interface SavedSentence {
+  id: number;
+  profile_id: number;
+  episode_id: number;
+  podcast_id: number;
+  name: string;
+  podcast_title: string;
+  episode_title: string;
+  text: string;
+  start_time: number;
+  end_time: number;
+  audio_available: boolean;
+  created_at: string;
+}
+
+export interface SavedSentenceCreate {
+  episode_id: number;
+  name: string;
+  start_sentence_id: number;
+  end_sentence_id: number;
+}
+
 export type DownloadError = 'offline' | 'network' | 'disk_space' | 'checksum' | 'unknown' | null;
 
 export type WhisperModelName = 'tiny' | 'base' | 'small';
