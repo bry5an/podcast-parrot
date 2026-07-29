@@ -139,6 +139,63 @@ def test_ingest_transcript_no_audio_path_leaves_status_none(session):
     assert episode.transcript_status == TranscriptStatus.none
 
 
+class _FakeSrtResponse:
+    text = "1\n00:00:00,000 --> 00:00:01,000\nこんにちは。\n"
+
+    def raise_for_status(self):
+        pass
+
+
+def test_ingest_transcript_reverts_status_on_published_transcript_furigana_failure(session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(
+        session, podcast, transcript_status=TranscriptStatus.none, transcript_source_url="https://example.com/t.srt"
+    )
+
+    def fake_build_segments(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("app.services.transcripts.httpx.get", lambda *a, **k: _FakeSrtResponse())
+    monkeypatch.setattr("app.services.transcripts.build_segments", fake_build_segments)
+
+    ingest_transcript(session, episode, audio_path=None)
+
+    session.refresh(episode)
+    assert episode.transcript_status == TranscriptStatus.none
+    assert session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first() is None
+    assert session.exec(select(Sentence)).first() is None
+
+
+def test_ingest_transcript_falls_back_to_asr_on_published_transcript_furigana_failure(session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(
+        session, podcast, transcript_status=TranscriptStatus.none, transcript_source_url="https://example.com/t.srt"
+    )
+
+    call_count = {"n": 0}
+
+    def fake_build_segments(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise RuntimeError("boom")
+        return [{"base": args[0], "reading": ""}]
+
+    def fake_transcribe_audio(*args, **kwargs):
+        return [Cue(0.0, 1.0, "こんにちは。")], "ja"
+
+    monkeypatch.setattr("app.services.transcripts.httpx.get", lambda *a, **k: _FakeSrtResponse())
+    monkeypatch.setattr("app.services.transcripts.build_segments", fake_build_segments)
+    monkeypatch.setattr("app.services.transcripts.transcribe_audio", fake_transcribe_audio)
+
+    ingest_transcript(session, episode, audio_path=Path("/fake/audio.mp3"))
+
+    session.refresh(episode)
+    assert episode.transcript_status == TranscriptStatus.auto
+    transcript = session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first()
+    assert transcript is not None
+    assert transcript.source == TranscriptSource.asr
+
+
 # --- ASR progress cleanup (#69) ------------------------------------------
 
 
