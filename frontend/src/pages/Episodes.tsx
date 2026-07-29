@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useProfiles } from '../state/ProfileContext';
+import { useTranscriptions } from '../state/TranscriptionContext';
 import type { Episode, EpisodeFilter, EpisodeSort, Podcast } from '../lib/types';
 
 const FILTERS: { key: EpisodeFilter; label: string }[] = [
@@ -49,6 +50,7 @@ export function Episodes() {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentProfile, loading: profileLoading } = useProfiles();
+  const { statuses: trackedTranscriptStatuses, track: trackTranscription } = useTranscriptions();
 
   const [podcast, setPodcast] = useState<Podcast | null>(
     (location.state as { podcast?: Podcast } | null)?.podcast ?? null,
@@ -58,7 +60,6 @@ export function Episodes() {
   const [filter, setFilter] = useState<EpisodeFilter>('all');
   const [sort, setSort] = useState<EpisodeSort>('newest');
   const pollTimers = useRef<Record<number, number>>({});
-  const transcriptPollTimers = useRef<Record<number, number>>({});
 
   // requestSeq guards against out-of-order responses: only the response to the
   // most-recently-issued request is applied, so a slow request for a stale
@@ -71,8 +72,13 @@ export function Episodes() {
       if (seq !== requestSeq.current) return;
       setEpisodes(rows);
       setLoaded(true);
+      // Resumes the global poller for any episode still transcribing server-side —
+      // covers re-visiting this page (or a plain reload) mid-transcription.
+      rows.forEach((row) => {
+        if (row.transcript_status === 'pending') trackTranscription(row.id, row.title);
+      });
     });
-  }, [id, currentProfile, filter, sort]);
+  }, [id, currentProfile, filter, sort, trackTranscription]);
 
   // refreshRef always points at the refresh closure for the CURRENT filter/sort,
   // so a download-completion callback fired long after the user changed tabs
@@ -96,10 +102,8 @@ export function Episodes() {
 
   useEffect(() => {
     const timers = pollTimers.current;
-    const transcriptTimers = transcriptPollTimers.current;
     return () => {
       Object.values(timers).forEach((t) => window.clearInterval(t));
-      Object.values(transcriptTimers).forEach((t) => window.clearInterval(t));
     };
   }, []);
 
@@ -138,45 +142,12 @@ export function Episodes() {
     refreshRef.current();
   };
 
-  const pollTranscriptStatus = useCallback((episodeId: number) => {
-    if (transcriptPollTimers.current[episodeId]) return;
-    let consecutiveErrors = 0;
-    const timer = window.setInterval(async () => {
-      try {
-        const status = await api.getEpisodeStatus(episodeId);
-        consecutiveErrors = 0;
-        if (status.transcript_status !== 'pending') {
-          window.clearInterval(transcriptPollTimers.current[episodeId]);
-          delete transcriptPollTimers.current[episodeId];
-          refreshRef.current();
-        } else {
-          setEpisodes((prev) =>
-            prev.map((e) => (e.id === episodeId ? { ...e, transcript_status: status.transcript_status } : e)),
-          );
-        }
-      } catch {
-        consecutiveErrors += 1;
-        if (consecutiveErrors >= 5) {
-          window.clearInterval(transcriptPollTimers.current[episodeId]);
-          delete transcriptPollTimers.current[episodeId];
-          setEpisodes((prev) =>
-            prev.map((e) => (e.id === episodeId ? { ...e, transcript_status: 'failed' } : e)),
-          );
-        }
-      }
-    }, 1200);
-    transcriptPollTimers.current[episodeId] = timer;
-  }, []);
-
   const startTranscription = useCallback(
     async (episode: Episode) => {
-      setEpisodes((prev) =>
-        prev.map((e) => (e.id === episode.id ? { ...e, transcript_status: 'pending' } : e)),
-      );
       await api.transcribeEpisode(episode.id);
-      pollTranscriptStatus(episode.id);
+      trackTranscription(episode.id, episode.title);
     },
-    [pollTranscriptStatus],
+    [trackTranscription],
   );
 
   const downloadAll = () => {
@@ -247,7 +218,13 @@ export function Episodes() {
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '4px 30px 28px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {episodes.map((ep) => {
+            {episodes.map((row) => {
+              // Live poller state (from the global TranscriptionContext) overrides the
+              // last server fetch, so an in-flight/just-finished transcription is
+              // reflected immediately without a full episode-list refetch.
+              const ep = trackedTranscriptStatuses[row.id]
+                ? { ...row, transcript_status: trackedTranscriptStatuses[row.id] }
+                : row;
               // "In progress" excludes both a near-zero start and the last few
               // seconds, so a barely-begun or essentially-finished episode
               // still reads as "Shadow" rather than "Continue".
