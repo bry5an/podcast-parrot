@@ -148,6 +148,54 @@ describe('SavedSentences', () => {
     expect(screen.getByTestId('clip-sentence-1-0')).toBeInTheDocument();
   });
 
+  it('repeats only the selected sentence, not the whole clip', async () => {
+    vi.mocked(api.listSavedSentences).mockResolvedValue([makeClip()]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByTestId('play-saved-sentence-1'));
+
+    const audio = screen.getByTestId('saved-sentence-audio') as HTMLAudioElement;
+    Object.defineProperty(audio, 'duration', { value: 10, configurable: true });
+    vi.spyOn(audio, 'play').mockResolvedValue();
+    const pauseSpy = vi.spyOn(audio, 'pause').mockImplementation(() => {});
+    fireEvent.loadedMetadata(audio);
+
+    // sentence 0 spans [0, 1); enable repeat on it specifically.
+    await user.click(await screen.findByTestId('repeat-sentence-1-0'));
+
+    audio.currentTime = 1;
+    fireEvent.timeUpdate(audio);
+
+    expect(audio.currentTime).toBe(0);
+    expect(pauseSpy).not.toHaveBeenCalled();
+  });
+
+  it('enabling sentence repeat clears an active clip repeat (mutually exclusive)', async () => {
+    vi.mocked(api.listSavedSentences).mockResolvedValue([makeClip()]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByTestId('repeat-toggle-1'));
+    await user.click(await screen.findByTestId('play-saved-sentence-1'));
+
+    const audio = screen.getByTestId('saved-sentence-audio') as HTMLAudioElement;
+    Object.defineProperty(audio, 'duration', { value: 10, configurable: true });
+    vi.spyOn(audio, 'play').mockResolvedValue();
+    const pauseSpy = vi.spyOn(audio, 'pause').mockImplementation(() => {});
+    fireEvent.loadedMetadata(audio);
+
+    // Turning sentence repeat on for sentence 1 should clear clip-level repeat;
+    // turning it back off leaves neither mode active.
+    await user.click(await screen.findByTestId('repeat-sentence-1-1'));
+    await user.click(screen.getByTestId('repeat-sentence-1-1'));
+
+    audio.currentTime = 2;
+    fireEvent.timeUpdate(audio);
+
+    expect(pauseSpy).toHaveBeenCalled();
+  });
+
   it('expands into a synced sentence transcript while playing and highlights the active sentence', async () => {
     vi.mocked(api.listSavedSentences).mockResolvedValue([makeClip()]);
     const user = userEvent.setup();
