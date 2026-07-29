@@ -6,6 +6,7 @@ import { useProfiles } from '../state/ProfileContext';
 import { useToast } from '../state/ToastContext';
 import { invokeTauri, listenTauri } from '../lib/tauri';
 import { eventMatchesModifier, loadKeymap, loadSeekStepSeconds, normalizeKey } from '../lib/keybindings';
+import { findActiveIndex } from '../lib/transcriptSync';
 import type { Episode, Podcast, Sentence, Transcript } from '../lib/types';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5] as const;
@@ -15,21 +16,6 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-// Binary-searches ordered, non-overlapping [start_time, end_time) sentences
-// for the one containing `t`; -1 if `t` falls in a gap between sentences.
-function findActiveIndex(sentences: Sentence[], t: number): number {
-  let lo = 0;
-  let hi = sentences.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    const s = sentences[mid];
-    if (t < s.start_time) hi = mid - 1;
-    else if (t >= s.end_time) lo = mid + 1;
-    else return mid;
-  }
-  return -1;
 }
 
 export function Player() {

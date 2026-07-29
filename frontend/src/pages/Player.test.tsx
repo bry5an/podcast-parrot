@@ -104,6 +104,7 @@ describe('Player', () => {
       end_time: 2,
       audio_available: true,
       created_at: '2026-01-01T00:00:00Z',
+      sentences: [],
     });
   });
 

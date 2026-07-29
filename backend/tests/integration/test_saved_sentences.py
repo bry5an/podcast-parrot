@@ -86,6 +86,24 @@ def test_create_and_list_saved_sentence(client, session):
     assert body["start_time"] == 0.0
     assert body["end_time"] == 2.0
     assert body["audio_available"] is True
+    assert body["sentences"] == [
+        {
+            "id": sentences[0].id,
+            "index": 0,
+            "start_time": 0.0,
+            "end_time": 1.0,
+            "text": "sentence 0",
+            "segments": [],
+        },
+        {
+            "id": sentences[1].id,
+            "index": 1,
+            "start_time": 1.0,
+            "end_time": 2.0,
+            "text": "sentence 1",
+            "segments": [],
+        },
+    ]
 
     listing = client.get(f"/api/profiles/{profile.id}/saved-sentences")
     assert listing.status_code == 200

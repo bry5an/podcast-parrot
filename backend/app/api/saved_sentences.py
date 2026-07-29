@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, SQLModel, select
 
+from app.api.episodes import SentenceRead
 from app.db import get_session
 from app.models import Episode, Podcast, Profile, SavedSentence, Sentence, Transcript
 
@@ -33,6 +34,7 @@ class SavedSentenceRead(SQLModel):
     end_time: float
     audio_available: bool
     created_at: datetime
+    sentences: list[SentenceRead]
 
 
 def _require_profile(session: Session, profile_id: int) -> Profile:
@@ -70,6 +72,17 @@ def _to_read(session: Session, clip: SavedSentence) -> SavedSentenceRead:
         end_time=end.end_time,
         audio_available=bool(episode and episode.local_audio_path),
         created_at=clip.created_at,
+        sentences=[
+            SentenceRead(
+                id=s.id,
+                index=s.index,
+                start_time=s.start_time,
+                end_time=s.end_time,
+                text=s.text,
+                segments=s.segments,
+            )
+            for s in sentences
+        ],
     )
 
 
