@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Player } from './Player';
 import { ProfileProvider } from '../state/ProfileContext';
 import { api } from '../lib/api';
+import { DEFAULT_KEYMAP } from '../lib/keybindings';
 import type { Episode, Podcast, Profile, Transcript } from '../lib/types';
 
 vi.mock('../lib/api');
@@ -257,5 +258,122 @@ describe('Player', () => {
     fireEvent.loadedMetadata(audio);
 
     expect(playSpy).not.toHaveBeenCalled();
+  });
+
+  it('Space toggles play/pause via the keyboard', async () => {
+    renderPlayer();
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    Object.defineProperty(audio, 'paused', { value: true, configurable: true });
+    const playSpy = vi.spyOn(audio, 'play').mockResolvedValue();
+
+    fireEvent.keyDown(window, { key: ' ' });
+    expect(playSpy).toHaveBeenCalled();
+  });
+
+  it('"r" replays the active sentence from its start', async () => {
+    renderPlayer();
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    audio.currentTime = 3;
+    fireEvent.timeUpdate(audio);
+    await waitFor(() => expect(screen.getByTestId('sentence-1')).toHaveAttribute('data-active', 'true'));
+
+    const playSpy = vi.spyOn(audio, 'play').mockResolvedValue();
+    fireEvent.keyDown(window, { key: 'r' });
+
+    expect(audio.currentTime).toBe(2);
+    expect(playSpy).toHaveBeenCalled();
+  });
+
+  it('"l" toggles sentence loop via the keyboard', async () => {
+    renderPlayer();
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    audio.currentTime = 0.5;
+    fireEvent.timeUpdate(audio);
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toHaveAttribute('data-active', 'true'));
+
+    fireEvent.keyDown(window, { key: 'l' });
+
+    audio.currentTime = 2.1;
+    fireEvent.timeUpdate(audio);
+
+    await waitFor(() => expect(audio.currentTime).toBe(0));
+  });
+
+  it('ArrowRight/ArrowLeft move to the next/previous sentence, bounds-checked at the ends', async () => {
+    renderPlayer();
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    const playSpy = vi.spyOn(audio, 'play').mockResolvedValue();
+
+    // No active sentence yet — previous/next are no-ops.
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(playSpy).not.toHaveBeenCalled();
+
+    audio.currentTime = 0.5;
+    fireEvent.timeUpdate(audio);
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toHaveAttribute('data-active', 'true'));
+
+    // Already at the first sentence — previous is a no-op.
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(playSpy).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    await waitFor(() => expect(screen.getByTestId('sentence-1')).toHaveAttribute('data-active', 'true'));
+    expect(audio.currentTime).toBe(2);
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toHaveAttribute('data-active', 'true'));
+  });
+
+  it('"s" cycles playback speed via the keyboard', async () => {
+    renderPlayer();
+    await waitFor(() => expect(screen.getByTestId('speed-control')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    const speedBtn = screen.getByTestId('speed-control');
+
+    expect(speedBtn).toHaveTextContent('1×');
+    fireEvent.keyDown(window, { key: 's' });
+    expect(speedBtn).toHaveTextContent('1.25×');
+    expect(audio.playbackRate).toBe(1.25);
+  });
+
+  it('Shift+ArrowRight/ArrowLeft seek within the active sentence, clamped to its bounds', async () => {
+    renderPlayer();
+    await waitFor(() => expect(screen.getByTestId('sentence-1')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    audio.currentTime = 3; // sentence-1 spans [2, 5)
+    fireEvent.timeUpdate(audio);
+    await waitFor(() => expect(screen.getByTestId('sentence-1')).toHaveAttribute('data-active', 'true'));
+
+    fireEvent.keyDown(window, { key: 'ArrowRight', shiftKey: true });
+    expect(audio.currentTime).toBe(5); // 3 + default 5s step, clamped to the sentence end
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft', shiftKey: true });
+    expect(audio.currentTime).toBe(2); // 5 - 5s step would go below the sentence start, clamped
+  });
+
+  it('reads a custom keymap from localStorage instead of the hardcoded defaults', async () => {
+    localStorage.setItem('kotoba.keymap', JSON.stringify({ ...DEFAULT_KEYMAP, playPause: 'p' }));
+    renderPlayer();
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    Object.defineProperty(audio, 'paused', { value: true, configurable: true });
+    const playSpy = vi.spyOn(audio, 'play').mockResolvedValue();
+
+    fireEvent.keyDown(window, { key: ' ' });
+    expect(playSpy).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: 'p' });
+    expect(playSpy).toHaveBeenCalled();
   });
 });
