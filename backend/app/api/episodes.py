@@ -134,7 +134,7 @@ def start_transcription(episode_id: int, background_tasks: BackgroundTasks, sess
     if not episode.local_audio_path:
         raise HTTPException(status_code=400, detail="Episode audio has not been downloaded yet")
 
-    if episode.transcript_status in (TranscriptStatus.none, TranscriptStatus.queued):
+    if episode.transcript_status in (TranscriptStatus.none, TranscriptStatus.queued, TranscriptStatus.failed):
         episode.transcript_status = TranscriptStatus.pending
         session.add(episode)
         session.commit()
