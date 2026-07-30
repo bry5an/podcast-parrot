@@ -1,5 +1,7 @@
 # Kotoba
 
+[![CI](https://github.com/bry5an/podcast-parrot/actions/workflows/ci.yml/badge.svg)](https://github.com/bry5an/podcast-parrot/actions/workflows/ci.yml)
+
 Kotoba is a macOS app for learning a language from podcasts. It plays an episode alongside a synced, scrolling transcript, so you can follow along, tap any word for a definition, and save sentences you want to review later.
 
 It ships with a curated directory of Japanese-learning podcasts, but you can add any podcast RSS feed or YouTube playlist as a source. Episodes that don't already publish a transcript are transcribed automatically on-device.
