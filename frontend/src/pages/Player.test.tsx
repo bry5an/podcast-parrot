@@ -162,6 +162,40 @@ describe('Player', () => {
     await waitFor(() => expect(screen.getByTestId('sentence-2')).toHaveAttribute('data-active', 'true'));
   });
 
+  it('clicking a word shows its definition in a popover without jumping playback', async () => {
+    vi.mocked(api.lookupWord).mockResolvedValue({
+      word: '一つ目',
+      reading: 'ひとつめ',
+      senses: [{ part_of_speech: 'Noun', definitions: ['the first one'] }],
+    });
+    renderPlayer();
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+    const audio = screen.getByTestId('audio') as HTMLAudioElement;
+    const playSpy = vi.spyOn(audio, 'play').mockResolvedValue();
+
+    fireEvent.click(screen.getAllByTestId('word')[0]);
+
+    expect(screen.getByTestId('definition-popover')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('the first one')).toBeInTheDocument());
+    expect(api.lookupWord).toHaveBeenCalledWith('一つ目', 'ja');
+    expect(playSpy).not.toHaveBeenCalled();
+    expect(screen.getByTestId('sentence-0')).toHaveAttribute('data-active', 'false');
+  });
+
+  it('dismisses the definition popover on close-button click', async () => {
+    vi.mocked(api.lookupWord).mockResolvedValue({ word: '一つ目', reading: 'ひとつめ', senses: [] });
+    const user = userEvent.setup();
+    renderPlayer();
+    await waitFor(() => expect(screen.getByTestId('sentence-0')).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByTestId('word')[0]);
+    await waitFor(() => expect(screen.getByTestId('definition-popover')).toBeInTheDocument());
+
+    await user.click(screen.getByTestId('definition-popover-close'));
+    expect(screen.queryByTestId('definition-popover')).not.toBeInTheDocument();
+  });
+
   it('loops the active sentence back to its start when loop-one is enabled and its end is reached', async () => {
     const user = userEvent.setup();
     renderPlayer();
