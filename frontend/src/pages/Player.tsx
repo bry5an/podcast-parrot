@@ -2,12 +2,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Ruby } from '../components/Ruby';
+import { DefinitionPopover } from '../components/DefinitionPopover';
 import { useProfiles } from '../state/ProfileContext';
 import { useToast } from '../state/ToastContext';
 import { invokeTauri, listenTauri } from '../lib/tauri';
 import { eventMatchesModifier, loadKeymap, loadSeekStepSeconds, normalizeKey } from '../lib/keybindings';
 import { findActiveIndex } from '../lib/transcriptSync';
-import type { Episode, Podcast, Sentence, Transcript } from '../lib/types';
+import type { DictionaryEntry, Episode, Podcast, Sentence, Transcript } from '../lib/types';
+
+interface WordPopupState {
+  word: string;
+  x: number;
+  y: number;
+  loading: boolean;
+  error: string | null;
+  entry: DictionaryEntry | null;
+}
 
 const SPEEDS = [0.75, 1, 1.25, 1.5] as const;
 
@@ -50,6 +60,7 @@ export function Player() {
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
   const [saveName, setSaveName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [wordPopup, setWordPopup] = useState<WordPopupState | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -356,6 +367,21 @@ export function Player() {
     }
   };
 
+  const handleWordClick = (word: string, e: React.MouseEvent) => {
+    const language = transcript?.language ?? '';
+    setWordPopup({ word, x: e.clientX, y: e.clientY, loading: true, error: null, entry: null });
+    api
+      .lookupWord(word, language)
+      .then((entry) => {
+        setWordPopup((prev) => (prev && prev.word === word ? { ...prev, loading: false, entry } : prev));
+      })
+      .catch(() => {
+        setWordPopup((prev) =>
+          prev && prev.word === word ? { ...prev, loading: false, error: 'No definition found' } : prev,
+        );
+      });
+  };
+
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -476,7 +502,7 @@ export function Player() {
                         ...(isSelected ? sentenceRowSelectedStyle : {}),
                       }}
                     >
-                      <Ruby segments={s.segments} showFurigana={showFurigana} />
+                      <Ruby segments={s.segments} showFurigana={showFurigana} onWordClick={handleWordClick} />
                     </div>
                   );
                 })}
@@ -580,6 +606,17 @@ export function Player() {
               />
             </div>
           </div>
+          {wordPopup && (
+            <DefinitionPopover
+              x={wordPopup.x}
+              y={wordPopup.y}
+              word={wordPopup.word}
+              loading={wordPopup.loading}
+              error={wordPopup.error}
+              entry={wordPopup.entry}
+              onClose={() => setWordPopup(null)}
+            />
+          )}
     </div>
   );
 }

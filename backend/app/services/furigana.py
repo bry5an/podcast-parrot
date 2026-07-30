@@ -6,6 +6,7 @@ import fugashi
 from app import paths
 
 _KANJI_RE = re.compile(r"[一-鿿々]")  # CJK ideographs + 々 iteration mark
+_WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)*")
 _UNIDIC_DIR = paths.packs_dir() / "unidic"
 
 _tagger: fugashi.Tagger | None = None
@@ -30,17 +31,34 @@ def _katakana_to_hiragana(katakana: str) -> str:
     return "".join(chr(ord(ch) - 0x60) if "ァ" <= ch <= "ヶ" else ch for ch in katakana)
 
 
+def _tokenize_words(text: str) -> list[dict]:
+    """Split non-Japanese text into per-word segments (each a clickable unit
+    for dictionary lookup), keeping whitespace/punctuation as separate
+    non-word segments so joining every segment's `base` reconstructs `text`
+    exactly."""
+    segments = []
+    pos = 0
+    for match in _WORD_RE.finditer(text):
+        if match.start() > pos:
+            segments.append({"base": text[pos : match.start()], "reading": ""})
+        segments.append({"base": match.group(), "reading": ""})
+        pos = match.end()
+    if pos < len(text):
+        segments.append({"base": text[pos:], "reading": ""})
+    return segments or [{"base": text, "reading": ""}]
+
+
 def build_segments(text: str, language: str) -> list[dict]:
     """Split `text` into the {base, reading} segments the Shadowing Player
-    renders as ruby text. Only Japanese sentences get morpheme-by-morpheme
+    renders as ruby text. Japanese sentences get morpheme-by-morpheme
     furigana; every other language (notably English, the ja_en direction's
-    target language) collapses to a single non-furigana segment. Also
+    target language) gets word-level segments with no readings. Also
     collapses to a single segment when the Japanese language pack (#24)
     isn't installed yet, rather than raising."""
     if not text:
         return [{"base": text, "reading": ""}]
     if not (language or "").startswith("ja"):
-        return [{"base": text, "reading": ""}]
+        return _tokenize_words(text)
 
     tagger = _get_tagger()
     if tagger is None:

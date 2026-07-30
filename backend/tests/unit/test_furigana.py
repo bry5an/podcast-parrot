@@ -13,13 +13,29 @@ def test_empty_text_returns_single_empty_segment():
     assert build_segments("", "ja") == [{"base": "", "reading": ""}]
 
 
-def test_non_japanese_language_collapses_to_single_segment():
-    assert build_segments("Hello world", "en") == [{"base": "Hello world", "reading": ""}]
+def test_non_japanese_language_tokenizes_per_word():
+    segments = build_segments("Hello world", "en")
+    assert segments == [
+        {"base": "Hello", "reading": ""},
+        {"base": " ", "reading": ""},
+        {"base": "world", "reading": ""},
+    ]
+    assert "".join(s["base"] for s in segments) == "Hello world"
 
 
-def test_japanese_text_with_non_japanese_language_still_collapses():
-    # The `language` argument drives the collapse decision, not the text
-    # content itself — Japanese text tagged as English stays un-annotated.
+def test_word_tokenization_preserves_punctuation_and_reconstructs_exactly():
+    text = "Well, isn't that great?!"
+    segments = build_segments(text, "en")
+    assert "".join(s["base"] for s in segments) == text
+    assert all(s["reading"] == "" for s in segments)
+    words = [s["base"] for s in segments if re.match(r"^[A-Za-z]+(?:'[A-Za-z]+)*$", s["base"])]
+    assert words == ["Well", "isn't", "that", "great"]
+
+
+def test_japanese_text_with_non_japanese_language_is_not_segmented_by_mecab():
+    # The `language` argument drives the tokenization strategy, not the text
+    # content itself — Japanese text tagged as English gets the word-boundary
+    # tokenizer (a no-op here, since it only splits on A-Za-z runs), not MeCab.
     assert build_segments("東京は晴れです", "en") == [{"base": "東京は晴れです", "reading": ""}]
 
 

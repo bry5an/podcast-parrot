@@ -155,3 +155,14 @@ export interface PackStatus {
   bytes_total: number;
   error: DownloadError;
 }
+
+export interface DictionarySense {
+  part_of_speech: string | null;
+  definitions: string[];
+}
+
+export interface DictionaryEntry {
+  word: string;
+  reading: string | null;
+  senses: DictionarySense[];
+}

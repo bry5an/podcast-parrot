@@ -1,4 +1,5 @@
 import type {
+  DictionaryEntry,
   Episode,
   EpisodeFilter,
   EpisodeSort,
@@ -143,4 +144,7 @@ export const api = {
   installPack: (name: string) => request<Pack>(`/api/packs/${name}`, { method: 'POST' }),
   getPackStatus: (name: string) => request<PackStatus>(`/api/packs/${name}/status`),
   deletePack: (name: string) => request<void>(`/api/packs/${name}`, { method: 'DELETE' }),
+
+  lookupWord: (word: string, language: string) =>
+    request<DictionaryEntry>(`/api/dictionary?word=${encodeURIComponent(word)}&language=${encodeURIComponent(language)}`),
 };
