@@ -1,53 +1,49 @@
-# podcast-parrot
+# Kotoba
 
-## Backend dev server
+Kotoba is a macOS app for learning a language from podcasts. It plays an episode alongside a synced, scrolling transcript, so you can follow along, tap any word for a definition, and save sentences you want to review later.
 
-```
-cd backend
-uv run uvicorn app.main:app --reload --port 8420
-```
+It ships with a curated directory of Japanese-learning podcasts, but you can add any podcast RSS feed or YouTube playlist as a source. Episodes that don't already publish a transcript are transcribed automatically on-device.
 
-## ASR (whisper.cpp)
+## Features
 
-The ASR fallback shells out to `whisper-cli` from [whisper.cpp](https://github.com/ggml-org/whisper.cpp). For local dev:
+- **Synced transcript playback** — the transcript scrolls and highlights in time with the audio, for any episode in your library.
+- **Automatic transcription** — episodes without a published transcript are transcribed locally using [whisper.cpp](https://github.com/ggml-org/whisper.cpp); no audio ever leaves your machine.
+- **Furigana for Japanese text** — readings are shown above kanji so you can read along even before you know every character.
+- **Tap-to-define** — click any word in the transcript to look up its definition (Jisho for Japanese, Wiktionary for English) without leaving the player.
+- **Saved sentences** — save sentences you want to revisit and browse them later from one place, with a repeat toggle for focused listening practice.
+- **Podcast directory + your own sources** — start from a built-in list of Japanese podcasts, or add any podcast RSS feed or YouTube playlist.
+- **Profiles** — multiple people can use the same install, each with their own library and saved sentences.
+- **Playback controls tuned for study** — adjustable speed, configurable seek step, and keyboard shortcuts you can remap in Settings.
 
-```
-brew install whisper-cpp
-export KOTOBA_WHISPER_BIN=$(brew --prefix)/bin/whisper-cli
-curl -L -o ggml-base.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
-export KOTOBA_WHISPER_MODEL=$PWD/ggml-base.bin
-```
+## Requirements
 
-Without those overrides, the binary resolves to `backend/bin/whisper-cli` (gitignored — a packaging step vendors it there) and the model to `<Application Support>/Kotoba/models/ggml-base.bin` (see #23 for model management). `backend/app/ggml-silero-v5.1.2.bin` is a vendored [Silero VAD](https://huggingface.co/ggml-org/whisper-vad) model (MIT), small enough to commit directly.
+- macOS on Apple Silicon
+- Internet access to browse podcast directories, add feeds, and download episodes (transcription and playback work fully offline once an episode is downloaded and transcribed)
 
-## Packaged backend sidecar
+## Getting started
 
-```
-cd backend
-./scripts/build_sidecar.sh
-```
-
-Produces a one-dir PyInstaller bundle at `backend/dist/kotoba-backend/`, whose entrypoint binary — `kotoba-backend-aarch64-apple-darwin`, matching Tauri's `externalBin` target-triple naming — boots the whole app (API + built SPA) with no Python installed:
+Kotoba doesn't have a signed, notarized release yet, so for now you'll build it from source. This takes a few minutes and only needs to be done once:
 
 ```
-./dist/kotoba-backend/kotoba-backend-aarch64-apple-darwin --port 8420 --data-dir /tmp/kotoba-data --auth-token secret
+git clone https://github.com/bry5an/podcast-parrot.git
+cd podcast-parrot
+make install
+make build
 ```
 
-`--data-dir` overrides `KOTOBA_DATA_DIR`; `--auth-token`, when set, is required (as an `x-kotoba-token` header) on every `/api/*` request except `/api/health` — the packaged app injects it into `index.html` at serve time (`window.KOTOBA_AUTH_TOKEN`) so the SPA can attach it automatically. Neither flag is required for local dev (`uv run uvicorn ...`), which never sets a token.
+`make build` produces `Kotoba.app` and a `Kotoba.dmg` under `desktop/src-tauri/target/release/bundle/`. Open the `.dmg` and drag `Kotoba.app` to Applications.
 
-## Desktop app (Tauri)
+Because the app is only ad-hoc signed (not signed with a paid Apple Developer ID), the first launch needs one extra step to clear the quarantine flag Gatekeeper adds to anything downloaded or built locally:
 
 ```
-brew install cmake                      # one-time, used to build whisper-cli from source
-./desktop/scripts/prepare_sidecars.sh   # builds the kotoba-backend sidecar and whisper-cli
-cd desktop
-npx tauri dev                           # or: npx tauri build -b app dmg
+xattr -dr com.apple.quarantine /Applications/Kotoba.app
 ```
 
-`prepare_sidecars.sh` builds the frontend + PyInstaller sidecar (same as `backend/scripts/build_sidecar.sh`) and stages both `kotoba-backend` and `whisper-cli` into `desktop/src-tauri/binaries/` with the `-aarch64-apple-darwin` suffix Tauri's `externalBin` mechanism expects. Re-run it whenever backend or frontend source changes — `tauri build` does not do this itself, since there's no `beforeBuildCommand` wired up (keeping the Python build and the Rust build as separate, individually-runnable steps).
+After that, launch Kotoba like any other app. On first run it'll ask you to pick a profile, walk you through setting up transcription, and let you add your first podcast.
 
-At launch the Rust shell picks a free port and a random per-launch auth token, spawns `kotoba-backend` with both, resolves the bundled `whisper-cli`'s path and passes it via `KOTOBA_WHISPER_BIN`, and polls `/api/health` before navigating the window from a local loading page to the live app. If the backend never becomes healthy (or exits at any point), the window shows an error page with the process's stderr tail instead of a blank rectangle. Closing the window or quitting checks `/api/activity` first and warns (native confirm dialog) if a download or transcription is in flight; either way, the backend is sent `SIGTERM` and given a grace period before `SIGKILL`.
+## Documentation
 
-**whisper-cli is built from source, statically (#62):** vendoring Homebrew's `whisper-cli` bundled a second copy of `libggml-base`/`libomp` alongside Homebrew's own, and ggml's dlopen plugin scan loaded both into one process — two OpenMP runtimes stepping on each other's thread-local state segfaulted on every transcription. `prepare_sidecars.sh` instead clones `ggml-org/whisper.cpp` at a pinned tag into `.cache/whisper-cpp/` and builds it with `-DBUILD_SHARED_LIBS=OFF -DGGML_BACKEND_DL=OFF -DGGML_OPENMP=OFF -DGGML_METAL_EMBED_LIBRARY=ON -DGGML_NATIVE=OFF`: no dlopen plugin scan and no second OpenMP runtime make the whole bug class structurally impossible, and the resulting binary is a single self-contained executable (`otool -L` shows only system frameworks) with nothing left to bundle or rpath-rewrite. `-DGGML_NATIVE=OFF` is load-bearing — without it cmake compiles `-mcpu=native`, and a binary built on one Apple Silicon generation would fault on another.
+Building from source, running the dev servers, and running the test suite are covered in [`docs/`](docs/):
 
-**Code signing:** Tauri ad-hoc signs the `.app` (`codesign -s -`) by default, which is mandatory for any binary to execute on Apple Silicon but is *not* a Developer ID signature. A `.dmg` built and shared this way still needs `xattr -dr com.apple.quarantine Kotoba.app` on the receiving machine before it will open.
+- [`docs/development.md`](docs/development.md) — local dev setup, project layout, running the app during development
+- [`docs/testing.md`](docs/testing.md) — running and writing tests, linting, CI
