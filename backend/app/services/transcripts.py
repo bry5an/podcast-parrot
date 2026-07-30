@@ -4,7 +4,8 @@ from pathlib import Path
 import httpx
 from sqlmodel import Session, select
 
-from app.models import Episode, Podcast, Sentence, Transcript, TranscriptSource, TranscriptStatus
+from app.models import Episode, Podcast, PodcastKind, Sentence, Transcript, TranscriptSource, TranscriptStatus
+from app.services import youtube
 from app.services.furigana import build_segments
 from app.services.rss import TIMED_TRANSCRIPT_FORMATS, classify_transcript_format
 from app.services.transcript_parsers import Cue, parse_json_transcript, parse_srt, parse_vtt
@@ -22,10 +23,62 @@ def get_or_build_transcript(session: Session, episode: Episode) -> Transcript | 
     return build_transcript(session, episode)
 
 
+def _persist_cues(
+    session: Session, episode: Episode, cues: list[Cue], language: str, source: TranscriptSource
+) -> Transcript | None:
+    transcript = Transcript(episode_id=episode.id, language=language, source=source)
+    session.add(transcript)
+    session.flush()
+
+    try:
+        for index, cue in enumerate(cues):
+            session.add(
+                Sentence(
+                    transcript_id=transcript.id,
+                    index=index,
+                    start_time=cue.start_time,
+                    end_time=cue.end_time,
+                    text=cue.text,
+                    segments=build_segments(cue.text, language),
+                )
+            )
+    except Exception:
+        logger.exception("Failed to build segments for episode %s", episode.id)
+        session.rollback()
+        return None
+    return transcript
+
+
+def _build_youtube_transcript(session: Session, episode: Episode, podcast: Podcast) -> Transcript | None:
+    # Only hand-written/manual captions count as a "published" transcript here
+    # — YouTube's own auto-generated captions are deliberately left for the
+    # whisper ASR fallback below (see youtube.fetch_manual_captions).
+    try:
+        cues = youtube.fetch_manual_captions(episode.audio_url, podcast.language)
+    except youtube.YoutubeFetchError:
+        return None
+    if not cues:
+        return None
+
+    transcript = _persist_cues(session, episode, cues, podcast.language, TranscriptSource.published)
+    if transcript is None:
+        return None
+
+    episode.transcript_status = TranscriptStatus.full
+    session.add(episode)
+    session.commit()
+    session.refresh(transcript)
+    return transcript
+
+
 def build_transcript(session: Session, episode: Episode) -> Transcript | None:
     """Fetch and parse the episode's published transcript on demand, building
     ordered Sentence rows from SRT/VTT/Podcasting-2.0-JSON cues. Untimed
     plain-text/HTML transcripts are left for the ASR fallback (#5)."""
+    podcast = session.get(Podcast, episode.podcast_id)
+    if podcast and podcast.kind == PodcastKind.youtube:
+        return _build_youtube_transcript(session, episode, podcast)
+
     if not episode.transcript_source_url:
         return None
 
@@ -48,32 +101,10 @@ def build_transcript(session: Session, episode: Episode) -> Transcript | None:
 
     language = episode.transcript_source_language
     if not language:
-        podcast = session.get(Podcast, episode.podcast_id)
         language = podcast.language if podcast else ""
 
-    transcript = Transcript(
-        episode_id=episode.id,
-        language=language,
-        source=TranscriptSource.published,
-    )
-    session.add(transcript)
-    session.flush()
-
-    try:
-        for index, cue in enumerate(cues):
-            session.add(
-                Sentence(
-                    transcript_id=transcript.id,
-                    index=index,
-                    start_time=cue.start_time,
-                    end_time=cue.end_time,
-                    text=cue.text,
-                    segments=build_segments(cue.text, language),
-                )
-            )
-    except Exception:
-        logger.exception("Failed to build segments for episode %s", episode.id)
-        session.rollback()
+    transcript = _persist_cues(session, episode, cues, language, TranscriptSource.published)
+    if transcript is None:
         return None
 
     episode.transcript_status = TranscriptStatus.full
@@ -141,29 +172,8 @@ def _transcribe_with_asr(session: Session, episode: Episode, audio_path: Path) -
         session.commit()
         return None
 
-    transcript = Transcript(
-        episode_id=episode.id,
-        language=detected_language or "",
-        source=TranscriptSource.asr,
-    )
-    session.add(transcript)
-    session.flush()
-
-    try:
-        for index, cue in enumerate(cues):
-            session.add(
-                Sentence(
-                    transcript_id=transcript.id,
-                    index=index,
-                    start_time=cue.start_time,
-                    end_time=cue.end_time,
-                    text=cue.text,
-                    segments=build_segments(cue.text, transcript.language),
-                )
-            )
-    except Exception:
-        logger.exception("Failed to build segments for episode %s", episode.id)
-        session.rollback()
+    transcript = _persist_cues(session, episode, cues, detected_language or "", TranscriptSource.asr)
+    if transcript is None:
         episode.transcript_status = TranscriptStatus.failed
         session.add(episode)
         session.commit()

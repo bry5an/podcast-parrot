@@ -23,6 +23,8 @@ const profile: Profile = {
 const podcast: Podcast = {
   id: 1,
   rss_url: 'https://example.com/feed.xml',
+  youtube_playlist_url: null,
+  kind: 'rss',
   title: 'Nihongo News',
   description: '',
   artwork_url: null,

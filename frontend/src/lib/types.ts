@@ -17,10 +17,13 @@ export interface ProfileCreate {
 }
 
 export type PodcastSource = 'curated' | 'user_added';
+export type PodcastKind = 'rss' | 'youtube';
 
 export interface Podcast {
   id: number;
-  rss_url: string;
+  rss_url: string | null;
+  youtube_playlist_url: string | null;
+  kind: PodcastKind;
   title: string;
   description: string;
   artwork_url: string | null;

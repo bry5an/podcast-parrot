@@ -1,5 +1,6 @@
 from app.models import Podcast, PodcastSource
 from app.services.rss import FeedFetchError
+from app.services.youtube import YoutubeFetchError
 
 
 def _make_podcast(session, **overrides) -> Podcast:
@@ -82,6 +83,57 @@ def test_add_podcast_from_rss_invalid_feed_returns_422(client, monkeypatch):
     monkeypatch.setattr("app.api.directory.fetch_podcast_metadata", raise_error)
 
     response = client.post("/api/directory/rss", json={"rss_url": "https://example.com/broken.xml"})
+    assert response.status_code == 422
+
+
+def test_add_podcast_from_youtube(client, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.directory.youtube.fetch_playlist_metadata",
+        lambda url: {"title": "YT Show", "description": "desc", "artwork_url": None, "language": "ja"},
+    )
+
+    response = client.post(
+        "/api/directory/youtube", json={"playlist_url": "https://www.youtube.com/playlist?list=abc"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["title"] == "YT Show"
+    assert body["kind"] == "youtube"
+    assert body["youtube_playlist_url"] == "https://www.youtube.com/playlist?list=abc"
+    assert body["rss_url"] is None
+    assert body["source"] == "user_added"
+
+
+def test_add_podcast_from_youtube_dedupes_existing_url(client, session, monkeypatch):
+    _make_podcast(
+        session,
+        rss_url=None,
+        youtube_playlist_url="https://www.youtube.com/playlist?list=existing",
+        kind="youtube",
+        title="Existing",
+    )
+
+    def fail_if_called(url):
+        raise AssertionError("fetch_playlist_metadata should not be called for an already-known URL")
+
+    monkeypatch.setattr("app.api.directory.youtube.fetch_playlist_metadata", fail_if_called)
+
+    response = client.post(
+        "/api/directory/youtube", json={"playlist_url": "https://www.youtube.com/playlist?list=existing"}
+    )
+    assert response.status_code == 200
+    assert response.json()["title"] == "Existing"
+
+
+def test_add_podcast_from_youtube_invalid_playlist_returns_422(client, monkeypatch):
+    def raise_error(url):
+        raise YoutubeFetchError("could not read playlist")
+
+    monkeypatch.setattr("app.api.directory.youtube.fetch_playlist_metadata", raise_error)
+
+    response = client.post(
+        "/api/directory/youtube", json={"playlist_url": "https://www.youtube.com/playlist?list=broken"}
+    )
     assert response.status_code == 422
 
 

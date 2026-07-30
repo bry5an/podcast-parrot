@@ -69,6 +69,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ rss_url: rssUrl }),
     }),
+  addYoutubePodcast: (playlistUrl: string) =>
+    request<Podcast>('/api/directory/youtube', {
+      method: 'POST',
+      body: JSON.stringify({ playlist_url: playlistUrl }),
+    }),
   listSubscriptions: (profileId: number) =>
     request<Podcast[]>(`/api/profiles/${profileId}/podcasts`),
   subscribe: (profileId: number, podcastId: number) =>

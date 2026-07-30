@@ -1,6 +1,7 @@
 import httpx
 
-from app.models import DownloadStatus, Episode, Podcast, TranscriptStatus
+from app.models import DownloadStatus, Episode, Podcast, PodcastKind, TranscriptStatus
+from app.services import youtube
 from app.services.downloads import download_episode_audio, retry_transcription
 
 
@@ -108,6 +109,56 @@ def test_download_failure_cleans_up_part_file_and_marks_failed(session, monkeypa
     part_path = tmp_path / f"{episode.id}.part"
     assert not part_path.exists()
     assert list(tmp_path.iterdir()) == []
+
+    session.refresh(episode)
+    assert episode.download_status == DownloadStatus.failed
+    assert episode.local_audio_path is None
+
+
+def test_download_youtube_episode_uses_youtube_download_audio(session, monkeypatch, tmp_path):
+    podcast = _make_podcast(
+        session,
+        rss_url=None,
+        youtube_playlist_url="https://www.youtube.com/playlist?list=abc",
+        kind=PodcastKind.youtube,
+    )
+    episode = _make_episode(session, podcast, audio_url="https://www.youtube.com/watch?v=abc123")
+    _patch_common(monkeypatch, session, tmp_path)
+
+    calls = []
+
+    def fake_download_audio(video_url, dest_dir, episode_id):
+        calls.append((video_url, dest_dir, episode_id))
+        target = dest_dir / f"{episode_id}.m4a"
+        target.write_bytes(b"audio-bytes")
+        return target
+
+    monkeypatch.setattr("app.services.downloads.youtube.download_audio", fake_download_audio)
+
+    download_episode_audio(episode.id)
+
+    assert calls == [(episode.audio_url, tmp_path, episode.id)]
+    session.refresh(episode)
+    assert episode.download_status == DownloadStatus.downloaded
+    assert episode.local_audio_path == f"{episode.id}.m4a"
+
+
+def test_download_youtube_episode_marks_failed_on_download_error(session, monkeypatch, tmp_path):
+    podcast = _make_podcast(
+        session,
+        rss_url=None,
+        youtube_playlist_url="https://www.youtube.com/playlist?list=abc",
+        kind=PodcastKind.youtube,
+    )
+    episode = _make_episode(session, podcast, audio_url="https://www.youtube.com/watch?v=abc123")
+    _patch_common(monkeypatch, session, tmp_path)
+
+    def failing_download_audio(video_url, dest_dir, episode_id):
+        raise youtube.YoutubeDownloadError("boom")
+
+    monkeypatch.setattr("app.services.downloads.youtube.download_audio", failing_download_audio)
+
+    download_episode_audio(episode.id)
 
     session.refresh(episode)
     assert episode.download_status == DownloadStatus.failed

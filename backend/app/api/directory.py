@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, SQLModel, select
 
 from app.db import get_session
-from app.models import Podcast, PodcastSource, Profile, Subscription
+from app.models import Podcast, PodcastKind, PodcastSource, Profile, Subscription
+from app.services import youtube
 from app.services.rss import FeedFetchError, fetch_podcast_metadata
 
 router = APIRouter(prefix="/api", tags=["directory"])
@@ -10,7 +11,9 @@ router = APIRouter(prefix="/api", tags=["directory"])
 
 class PodcastRead(SQLModel):
     id: int
-    rss_url: str
+    rss_url: str | None
+    youtube_playlist_url: str | None
+    kind: PodcastKind
     title: str
     description: str
     artwork_url: str | None
@@ -24,10 +27,16 @@ class RssAddRequest(SQLModel):
     rss_url: str
 
 
+class YoutubeAddRequest(SQLModel):
+    playlist_url: str
+
+
 def _to_read(podcast: Podcast, subscribed_ids: set[int]) -> PodcastRead:
     return PodcastRead(
         id=podcast.id,
         rss_url=podcast.rss_url,
+        youtube_playlist_url=podcast.youtube_playlist_url,
+        kind=podcast.kind,
         title=podcast.title,
         description=podcast.description,
         artwork_url=podcast.artwork_url,
@@ -82,6 +91,30 @@ def add_podcast_from_rss(payload: RssAddRequest, session: Session = Depends(get_
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     podcast = Podcast(rss_url=rss_url, source=PodcastSource.user_added, **metadata)
+    session.add(podcast)
+    session.commit()
+    session.refresh(podcast)
+    return _to_read(podcast, set())
+
+
+@router.post("/directory/youtube", response_model=PodcastRead)
+def add_podcast_from_youtube(payload: YoutubeAddRequest, session: Session = Depends(get_session)):
+    playlist_url = payload.playlist_url.strip()
+    existing = session.exec(select(Podcast).where(Podcast.youtube_playlist_url == playlist_url)).first()
+    if existing:
+        return _to_read(existing, set())
+
+    try:
+        metadata = youtube.fetch_playlist_metadata(playlist_url)
+    except youtube.YoutubeFetchError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    podcast = Podcast(
+        youtube_playlist_url=playlist_url,
+        kind=PodcastKind.youtube,
+        source=PodcastSource.user_added,
+        **metadata,
+    )
     session.add(podcast)
     session.commit()
     session.refresh(podcast)

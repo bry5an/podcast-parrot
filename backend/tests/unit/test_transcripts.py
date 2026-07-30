@@ -2,11 +2,12 @@ from pathlib import Path
 
 from sqlmodel import select
 
-from app.models import Episode, Podcast, Sentence, Transcript, TranscriptSource, TranscriptStatus
+from app.models import Episode, Podcast, PodcastKind, Sentence, Transcript, TranscriptSource, TranscriptStatus
 from app.services import transcription
 from app.services.transcript_parsers import Cue
 from app.services.transcription import WhisperModelNotFoundError
 from app.services.transcripts import ingest_transcript
+from app.services.youtube import YoutubeFetchError
 
 
 def _make_podcast(session, **overrides) -> Podcast:
@@ -194,6 +195,89 @@ def test_ingest_transcript_falls_back_to_asr_on_published_transcript_furigana_fa
     transcript = session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first()
     assert transcript is not None
     assert transcript.source == TranscriptSource.asr
+
+
+# --- YouTube manual captions (#85) ---------------------------------------
+
+
+def _make_youtube_podcast(session, **overrides) -> Podcast:
+    defaults = dict(
+        youtube_playlist_url="https://www.youtube.com/playlist?list=abc",
+        kind=PodcastKind.youtube,
+        title="Nihongo News",
+        language="ja",
+    )
+    defaults.update(overrides)
+    podcast = Podcast(**defaults)
+    session.add(podcast)
+    session.commit()
+    session.refresh(podcast)
+    return podcast
+
+
+def test_ingest_transcript_uses_youtube_manual_captions_when_available(session, monkeypatch):
+    podcast = _make_youtube_podcast(session)
+    episode = _make_episode(
+        session, podcast, audio_url="https://www.youtube.com/watch?v=abc123", transcript_status=TranscriptStatus.none
+    )
+
+    monkeypatch.setattr(
+        "app.services.transcripts.youtube.fetch_manual_captions",
+        lambda video_url, language: [Cue(0.0, 1.0, "こんにちは。")],
+    )
+
+    ingest_transcript(session, episode, audio_path=Path("/fake/audio.m4a"))
+
+    session.refresh(episode)
+    assert episode.transcript_status == TranscriptStatus.full
+    transcript = session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first()
+    assert transcript is not None
+    assert transcript.source == TranscriptSource.published
+    assert transcript.language == "ja"
+
+
+def test_ingest_transcript_falls_back_to_asr_when_youtube_has_no_manual_captions(session, monkeypatch):
+    podcast = _make_youtube_podcast(session)
+    episode = _make_episode(
+        session, podcast, audio_url="https://www.youtube.com/watch?v=abc123", transcript_status=TranscriptStatus.none
+    )
+
+    monkeypatch.setattr("app.services.transcripts.youtube.fetch_manual_captions", lambda video_url, language: None)
+
+    def fake_transcribe_audio(*args, **kwargs):
+        return [Cue(0.0, 1.0, "こんにちは。")], "ja"
+
+    monkeypatch.setattr("app.services.transcripts.transcribe_audio", fake_transcribe_audio)
+
+    ingest_transcript(session, episode, audio_path=Path("/fake/audio.m4a"))
+
+    session.refresh(episode)
+    assert episode.transcript_status == TranscriptStatus.auto
+    transcript = session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first()
+    assert transcript is not None
+    assert transcript.source == TranscriptSource.asr
+
+
+def test_ingest_transcript_falls_back_to_asr_when_youtube_caption_fetch_errors(session, monkeypatch):
+    podcast = _make_youtube_podcast(session)
+    episode = _make_episode(
+        session, podcast, audio_url="https://www.youtube.com/watch?v=abc123", transcript_status=TranscriptStatus.none
+    )
+
+    def raise_fetch_error(*args, **kwargs):
+        raise YoutubeFetchError("boom")
+
+    monkeypatch.setattr("app.services.transcripts.youtube.fetch_manual_captions", raise_fetch_error)
+
+    def fake_transcribe_audio(*args, **kwargs):
+        return [Cue(0.0, 1.0, "こんにちは。")], "ja"
+
+    monkeypatch.setattr("app.services.transcripts.transcribe_audio", fake_transcribe_audio)
+
+    ingest_transcript(session, episode, audio_path=Path("/fake/audio.m4a"))
+
+    session.refresh(episode)
+    assert episode.transcript_status == TranscriptStatus.auto
 
 
 # --- ASR progress cleanup (#69) ------------------------------------------
