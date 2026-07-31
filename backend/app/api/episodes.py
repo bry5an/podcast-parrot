@@ -5,10 +5,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlmodel import Session, SQLModel, select
 
+from app import paths
 from app.db import get_session
 from app.models import DownloadStatus, Episode, PlaybackState, Podcast, Sentence, TranscriptSource, TranscriptStatus
 from app.services import transcription
-from app.services.downloads import STORAGE_DIR, download_episode_audio, retry_transcription
+from app.services.downloads import download_episode_audio, remove_audio, retry_transcription
 from app.services.episodes import sync_episodes
 from app.services.transcripts import get_or_build_transcript
 
@@ -160,11 +161,8 @@ def delete_download(episode_id: int, session: Session = Depends(get_session)):
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
 
-    if episode.local_audio_path:
-        (STORAGE_DIR / episode.local_audio_path).unlink(missing_ok=True)
+    remove_audio(session, episode)
 
-    episode.local_audio_path = None
-    episode.download_status = DownloadStatus.idle
     if episode.transcript_status == TranscriptStatus.pending:
         # A transcription may still be running in the background against the
         # now-deleted audio (its file handle can outlive the unlink); marking
@@ -231,7 +229,7 @@ def stream_audio(episode_id: int, session: Session = Depends(get_session)):
     if not episode.local_audio_path:
         raise HTTPException(status_code=404, detail="Episode has not been downloaded")
 
-    path = STORAGE_DIR / episode.local_audio_path
+    path = paths.storage_dir() / episode.local_audio_path
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Audio file missing on disk")
 

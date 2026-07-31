@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from pathlib import Path
@@ -12,7 +13,23 @@ def data_dir() -> Path:
     return Path.home() / "Library" / "Application Support" / APP_NAME
 
 
+def storage_location_file() -> Path:
+    return data_dir() / "storage_location.json"
+
+
 def storage_dir() -> Path:
+    """Where downloaded episode audio lives. Defaults under data_dir(), but a
+    user can relocate it (see services.downloads.relocate_storage); that
+    choice is recorded in storage_location_file() rather than the DB, since
+    this module has no DB dependency and is imported before the DB exists."""
+    marker = storage_location_file()
+    if marker.is_file():
+        try:
+            location = json.loads(marker.read_text()).get("path")
+        except (json.JSONDecodeError, OSError):
+            location = None
+        if location:
+            return Path(location)
     return data_dir() / "storage"
 
 

@@ -1,4 +1,6 @@
 import type {
+  AppSettings,
+  AppSettingsUpdate,
   DictionaryEntry,
   Episode,
   EpisodeFilter,
@@ -12,6 +14,7 @@ import type {
   SavedSentence,
   SavedSentenceCreate,
   ShadowSummary,
+  StorageStats,
   Streak,
   Transcript,
   WhisperModel,
@@ -147,4 +150,9 @@ export const api = {
 
   lookupWord: (word: string, language: string) =>
     request<DictionaryEntry>(`/api/dictionary?word=${encodeURIComponent(word)}&language=${encodeURIComponent(language)}`),
+
+  getStorageStats: () => request<StorageStats>('/api/storage'),
+  getSettings: () => request<AppSettings>('/api/settings'),
+  updateSettings: (payload: AppSettingsUpdate) =>
+    request<AppSettings>('/api/settings', { method: 'PATCH', body: JSON.stringify(payload) }),
 };

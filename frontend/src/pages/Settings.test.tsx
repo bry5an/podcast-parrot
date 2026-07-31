@@ -35,6 +35,9 @@ function renderSettings() {
 describe('Settings', () => {
   beforeEach(() => {
     vi.mocked(api.listProfiles).mockResolvedValue([profile]);
+    vi.mocked(api.getStorageStats).mockResolvedValue({ bytes_used: 0, episode_count: 0, storage_root: '/tmp/storage' });
+    vi.mocked(api.getSettings).mockResolvedValue({ auto_remove: 'never', storage_root: '/tmp/storage' });
+    vi.mocked(api.updateSettings).mockResolvedValue({ auto_remove: 'never', storage_root: '/tmp/storage' });
   });
 
   it('renders all five sections once a profile is loaded', async () => {
@@ -168,5 +171,24 @@ describe('Settings', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '10s' }));
     expect(loadSeekStepSeconds()).toBe(10);
+  });
+
+  it('renders real storage usage and download location from the API', async () => {
+    vi.mocked(api.getStorageStats).mockResolvedValue({ bytes_used: 2_400_000_000, episode_count: 38, storage_root: '/tmp/storage' });
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+
+    expect(await screen.findByText('2.2 GB · 38 episodes')).toBeInTheDocument();
+    expect(screen.getByText('/tmp/storage')).toBeInTheDocument();
+  });
+
+  it('persists the auto-remove policy via the API', async () => {
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+    await screen.findByText('/tmp/storage');
+
+    await userEvent.click(screen.getByRole('button', { name: '30 days' }));
+
+    expect(api.updateSettings).toHaveBeenCalledWith({ auto_remove: '30d' });
   });
 });

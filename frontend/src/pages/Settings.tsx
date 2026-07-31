@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useProfiles } from '../state/ProfileContext';
+import { api } from '../lib/api';
+import type { AutoRemovePolicy, StorageStats } from '../lib/types';
+import { isTauri } from '../lib/tauri';
 import {
   DEFAULT_SEEK_STEP_SECONDS,
   formatKeyLabel,
@@ -21,8 +24,14 @@ type PlaybackSpeed = '0.75x' | '1x' | '1.25x' | '1.5x';
 type SeekStep = '3s' | '5s' | '10s';
 type ComputeDevice = 'cpu' | 'gpu';
 type TextSize = 'S' | 'M' | 'L';
-type AutoRemove = 'never' | '7d' | '30d';
 type Theme = 'warm' | 'light' | 'dark';
+
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return '0 MB';
+  const gb = bytes / 1024 ** 3;
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  return `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+}
 
 function Icon({ children }: { children: ReactNode }) {
   return (
@@ -248,9 +257,51 @@ export function Settings() {
   const [dimInactive, setDimInactive] = useState(true);
   const [textSize, setTextSize] = useState<TextSize>('M');
 
-  const [autoRemove, setAutoRemove] = useState<AutoRemove>('never');
+  const [autoRemove, setAutoRemove] = useState<AutoRemovePolicy>('never');
+  const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [storageRoot, setStorageRoot] = useState<string | null>(null);
+  const [relocating, setRelocating] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
 
   const [theme, setTheme] = useState<Theme>('warm');
+
+  useEffect(() => {
+    api.getStorageStats().then(setStorageStats).catch(() => setStorageError('Could not load storage usage'));
+    api
+      .getSettings()
+      .then((s) => {
+        setAutoRemove(s.auto_remove);
+        setStorageRoot(s.storage_root);
+      })
+      .catch(() => setStorageError('Could not load storage settings'));
+  }, []);
+
+  const handleAutoRemoveChange = (value: AutoRemovePolicy) => {
+    const previous = autoRemove;
+    setAutoRemove(value);
+    api.updateSettings({ auto_remove: value }).catch(() => {
+      setAutoRemove(previous);
+      setStorageError('Could not save auto-remove setting');
+    });
+  };
+
+  const handleChangeLocation = async () => {
+    if (!isTauri()) return;
+    setStorageError(null);
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({ directory: true, multiple: false });
+    if (!selected || typeof selected !== 'string') return;
+    setRelocating(true);
+    try {
+      const updated = await api.updateSettings({ storage_root: selected });
+      setStorageRoot(updated.storage_root);
+      setStorageStats(await api.getStorageStats());
+    } catch {
+      setStorageError('Could not move storage to that folder');
+    } finally {
+      setRelocating(false);
+    }
+  };
 
   if (!currentProfile) return loading ? null : <Navigate to="/library" replace />;
 
@@ -458,14 +509,22 @@ export function Settings() {
           </div>
         </Section>
 
-        <Section id="library-storage" registerRef={registerRef} title="Library & storage" subtitle="Where downloaded audio and transcripts live on this Mac.">
+        <Section id="library-storage" registerRef={registerRef} title="Library & storage" subtitle="Where downloaded audio lives on this Mac.">
+          {storageError && <div style={styles.storageErrorBanner}>{storageError}</div>}
+
           <div style={styles.card}>
             <SettingRow
               title="Download location"
-              subtitle="~/Library/Application Support/Kotoba/media"
+              subtitle={storageRoot ?? 'Loading…'}
               control={
-                <button type="button" style={styles.secondaryBtn}>
-                  Change…
+                <button
+                  type="button"
+                  style={{ ...styles.secondaryBtn, ...(relocating || !isTauri() ? { opacity: 0.5, cursor: 'default' } : {}) }}
+                  disabled={relocating || !isTauri()}
+                  title={isTauri() ? undefined : 'Available in the desktop app'}
+                  onClick={handleChangeLocation}
+                >
+                  {relocating ? 'Moving…' : 'Change…'}
                 </button>
               }
             />
@@ -475,15 +534,14 @@ export function Settings() {
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
                 <div style={styles.rowTitle}>Storage used</div>
-                <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgba(32,30,26,.6)' }}>2.4 GB · 38 episodes</div>
+                <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgba(32,30,26,.6)' }}>
+                  {storageStats
+                    ? `${formatBytes(storageStats.bytes_used)} · ${storageStats.episode_count} episode${storageStats.episode_count === 1 ? '' : 's'}`
+                    : 'Loading…'}
+                </div>
               </div>
               <div style={styles.storageBar}>
-                <div style={{ width: '78%', background: 'oklch(0.55 0.055 195)' }} />
-                <div style={{ width: '12%', background: 'oklch(0.65 0.13 55)' }} />
-              </div>
-              <div style={{ display: 'flex', gap: 16, marginTop: 8, font: '500 11px/1 IBM Plex Mono', color: 'rgba(32,30,26,.55)' }}>
-                <span><span style={{ ...styles.legendDot, background: 'oklch(0.55 0.055 195)' }} /> Audio 1.5 GB</span>
-                <span><span style={{ ...styles.legendDot, background: 'oklch(0.65 0.13 55)' }} /> Transcripts 0.3 GB</span>
+                <div style={{ width: storageStats && storageStats.bytes_used > 0 ? '100%' : '0%', background: 'oklch(0.55 0.055 195)' }} />
               </div>
             </div>
           </div>
@@ -495,12 +553,12 @@ export function Settings() {
               control={
                 <SegmentedControl
                   options={[
-                    { value: 'never' as AutoRemove, label: 'Never' },
-                    { value: '7d' as AutoRemove, label: '7 days' },
-                    { value: '30d' as AutoRemove, label: '30 days' },
+                    { value: 'never' as AutoRemovePolicy, label: 'Never' },
+                    { value: '7d' as AutoRemovePolicy, label: '7 days' },
+                    { value: '30d' as AutoRemovePolicy, label: '30 days' },
                   ]}
                   value={autoRemove}
-                  onChange={setAutoRemove}
+                  onChange={handleAutoRemoveChange}
                 />
               }
             />
@@ -589,7 +647,14 @@ const styles: Record<string, React.CSSProperties> = {
   installedDot: { width: 5, height: 5, borderRadius: '50%', background: 'oklch(0.55 0.055 195)', display: 'inline-block' },
   secondaryBtn: { height: 34, padding: '0 16px', borderRadius: 17, border: '1px solid rgba(32,30,26,.14)', background: '#fff', color: '#211f1b', font: '600 12.5px/1 IBM Plex Sans', cursor: 'pointer' },
   storageBar: { display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'rgba(32,30,26,.08)', marginTop: 10 },
-  legendDot: { width: 7, height: 7, borderRadius: '50%', display: 'inline-block', marginRight: 5 },
+  storageErrorBanner: {
+    font: '500 12px/1.4 IBM Plex Sans',
+    color: 'oklch(0.5 0.15 30)',
+    background: 'oklch(0.5 0.15 30 / 0.08)',
+    border: '1px solid oklch(0.5 0.15 30 / 0.25)',
+    borderRadius: 10,
+    padding: '10px 14px',
+  },
   themeCard: { flex: 1, padding: 10, borderRadius: 14, border: '1.5px solid rgba(32,30,26,.1)', background: '#fff', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' },
   themeCardSelected: { border: '1.5px solid oklch(0.42 0.06 195)' },
   themeSwatch: { height: 64, borderRadius: 9 },

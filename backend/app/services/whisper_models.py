@@ -183,7 +183,7 @@ def _retry_queued_transcriptions() -> None:
     # Deferred imports: transcription.py resolves the active model through this
     # module, so top-level imports here would cycle back through downloads.py/
     # transcripts.py -> transcription.py -> whisper_models.py.
-    from app.services.downloads import STORAGE_DIR
+    from app import paths
     from app.services.transcripts import ingest_transcript
 
     with Session(engine) as session:
@@ -194,4 +194,4 @@ def _retry_queued_transcriptions() -> None:
             )
         ).all()
         for episode in episodes:
-            ingest_transcript(session, episode, audio_path=STORAGE_DIR / episode.local_audio_path)
+            ingest_transcript(session, episode, audio_path=paths.storage_dir() / episode.local_audio_path)

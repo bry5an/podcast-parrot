@@ -10,6 +10,7 @@
     "allow-begin-playback-wake-lock",
     "allow-end-playback-wake-lock",
     "allow-update-now-playing",
-    "allow-clear-now-playing"
+    "allow-clear-now-playing",
+    "dialog:default"
   ]
 }

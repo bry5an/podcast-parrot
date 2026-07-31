@@ -237,7 +237,7 @@ def test_get_status_reports_not_installed_when_nothing_on_disk():
 
 def test_retry_queued_transcriptions_reruns_ingest_transcript(session, monkeypatch, tmp_path):
     monkeypatch.setattr("app.services.whisper_models.engine", session.get_bind())
-    monkeypatch.setattr("app.services.downloads.STORAGE_DIR", tmp_path)
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
 
     podcast = _make_podcast(session)
     queued_episode = _make_episode(
