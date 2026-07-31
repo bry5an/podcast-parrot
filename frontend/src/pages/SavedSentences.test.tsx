@@ -260,4 +260,55 @@ describe('SavedSentences', () => {
 
     expect(await screen.findByTestId('player-probe')).toHaveTextContent('7/42');
   });
+
+  it('keeps transcript unfurled when audio is paused', async () => {
+    vi.mocked(api.listSavedSentences).mockResolvedValue([makeClip()]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const playBtn = await screen.findByTestId('play-saved-sentence-1');
+    await user.click(playBtn);
+
+    const audio = screen.getByTestId('saved-sentence-audio') as HTMLAudioElement;
+    Object.defineProperty(audio, 'duration', { value: 10, configurable: true });
+    vi.spyOn(audio, 'play').mockResolvedValue();
+    const pauseSpy = vi.spyOn(audio, 'pause').mockImplementation(() => {});
+    fireEvent.loadedMetadata(audio);
+
+    expect(screen.getByTestId('clip-sentence-1-0')).toBeInTheDocument();
+
+    // Pause clip by clicking play/pause button again
+    await user.click(playBtn);
+
+    expect(pauseSpy).toHaveBeenCalled();
+    // Transcript should remain unfurled even after pausing
+    expect(screen.getByTestId('clip-sentence-1-0')).toBeInTheDocument();
+  });
+
+  it('minimizes previous transcript and unfurls new transcript when a different clip is played', async () => {
+    const clip1 = makeClip({ id: 1, name: 'Clip 1', text: 'Clip 1 text' });
+    const clip2 = makeClip({ id: 2, name: 'Clip 2', text: 'Clip 2 text' });
+    vi.mocked(api.listSavedSentences).mockResolvedValue([clip1, clip2]);
+    const user = userEvent.setup();
+    renderPage();
+
+    // Play Clip 1
+    await user.click(await screen.findByTestId('play-saved-sentence-1'));
+    const audio = screen.getByTestId('saved-sentence-audio') as HTMLAudioElement;
+    Object.defineProperty(audio, 'duration', { value: 10, configurable: true });
+    vi.spyOn(audio, 'play').mockResolvedValue();
+    fireEvent.loadedMetadata(audio);
+
+    // Clip 1 transcript is expanded, Clip 2 is minimized
+    expect(screen.getByTestId('clip-sentence-1-0')).toBeInTheDocument();
+    expect(screen.queryByTestId('clip-sentence-2-0')).not.toBeInTheDocument();
+
+    // Play Clip 2
+    await user.click(screen.getByTestId('play-saved-sentence-2'));
+    fireEvent.loadedMetadata(audio);
+
+    // Clip 1 transcript is minimized, Clip 2 transcript is expanded
+    expect(screen.queryByTestId('clip-sentence-1-0')).not.toBeInTheDocument();
+    expect(screen.getByTestId('clip-sentence-2-0')).toBeInTheDocument();
+  });
 });
