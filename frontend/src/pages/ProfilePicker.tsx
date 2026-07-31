@@ -110,7 +110,6 @@ export function ProfilePicker() {
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ font: '600 17px/1.2 IBM Plex Sans' }}>{p.name}</div>
-                    <div style={styles.mono}>{meta.code}</div>
                     {streaks[p.id] ? (
                       <div style={styles.streak} data-testid={`streak-${p.id}`}>
                         🔥 {streaks[p.id]} day{streaks[p.id] === 1 ? '' : 's'} streak

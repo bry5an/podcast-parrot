@@ -13,8 +13,8 @@ export const PALETTE: Swatch[] = [
 
 export const DIRECTION_META: Record<
   'en_ja' | 'ja_en',
-  { flag: string; code: string; title: string; sub: string }
+  { flag: string; title: string; sub: string }
 > = {
-  en_ja: { flag: '🇯🇵', code: 'EN → JA', title: 'Japanese', sub: '日本語 · native English' },
-  ja_en: { flag: '🇺🇸', code: 'JA → EN', title: 'English', sub: '英語 · native Japanese' },
+  en_ja: { flag: '🇯🇵', title: 'Japanese', sub: '日本語 · native English' },
+  ja_en: { flag: '🇺🇸', title: 'English', sub: '英語 · native Japanese' },
 };
