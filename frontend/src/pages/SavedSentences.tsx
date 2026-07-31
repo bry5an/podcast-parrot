@@ -19,6 +19,7 @@ export function SavedSentences() {
   const [clips, setClips] = useState<SavedSentence[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [playingId, setPlayingId] = useState<number | null>(null);
+  const [unfurledId, setUnfurledId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const [currentTime, setCurrentTime] = useState(0);
@@ -46,11 +47,23 @@ export function SavedSentences() {
     if (!clip.audio_available) return;
     const audio = audioRef.current;
     if (!audio) return;
-    if (playingId === clip.id) {
-      audio.pause();
-      setPlayingId(null);
+
+    if (unfurledId === clip.id) {
+      if (playingId === clip.id) {
+        audio.pause();
+        setPlayingId(null);
+      } else {
+        if (audio.currentTime >= clip.end_time || audio.currentTime < clip.start_time) {
+          audio.currentTime = clip.start_time;
+          setCurrentTime(clip.start_time);
+        }
+        audio.play();
+        setPlayingId(clip.id);
+      }
       return;
     }
+
+    setUnfurledId(clip.id);
     activeClipRef.current = clip;
     audio.src = api.audioUrl(clip.episode_id);
     setPlayingId(clip.id);
@@ -58,7 +71,7 @@ export function SavedSentences() {
 
   const seekToSentence = (clip: SavedSentence, sentence: Sentence) => {
     const audio = audioRef.current;
-    if (!audio || playingId !== clip.id) return;
+    if (!audio || unfurledId !== clip.id) return;
     audio.currentTime = sentence.start_time;
     setCurrentTime(sentence.start_time);
   };
@@ -100,6 +113,11 @@ export function SavedSentences() {
 
   const deleteClip = async (clip: SavedSentence) => {
     if (!currentProfile) return;
+    if (unfurledId === clip.id) {
+      setUnfurledId(null);
+      setPlayingId(null);
+      audioRef.current?.pause();
+    }
     await api.deleteSavedSentence(currentProfile.id, clip.id);
     showToast(`Deleted "${clip.name}"`);
     refresh();
@@ -196,7 +214,7 @@ export function SavedSentences() {
               >
                 {clip.podcast_title} · {clip.episode_title}
               </div>
-              {playingId === clip.id ? (
+              {unfurledId === clip.id ? (
                 <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {(() => {
                     const activeIdx = findActiveIndex(clip.sentences, currentTime);
@@ -320,7 +338,7 @@ const repeatBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none
 const repeatBtnActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', borderColor: 'oklch(0.42 0.06 195 / 0.4)', color: 'oklch(0.42 0.06 195)' };
 const deleteBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.12)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.5)' };
 const nameInputStyle: React.CSSProperties = { width: '100%', height: 28, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(32,30,26,.2)', font: '600 14px/1 IBM Plex Sans' };
-const clipSentenceRowStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 8, font: '500 13px/1.7 "IBM Plex Sans", sans-serif' };
+const clipSentenceRowStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 8, font: '500 23px/1.7 "IBM Plex Sans", sans-serif' };
 const clipSentenceRowActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', boxShadow: 'inset 3px 0 0 oklch(0.42 0.06 195)' };
 const sentenceRepeatBtnStyle: React.CSSProperties = { width: 22, height: 22, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.45)' };
 const sentenceRepeatBtnActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', borderColor: 'oklch(0.42 0.06 195 / 0.4)', color: 'oklch(0.42 0.06 195)' };
