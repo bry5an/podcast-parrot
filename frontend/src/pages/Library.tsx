@@ -128,7 +128,7 @@ export function Library() {
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ font: '600 12px/1.2 IBM Plex Sans' }}>{currentProfile.name}</div>
-                  <div style={{ font: '400 10px/1.3 IBM Plex Mono', color: 'rgba(32,30,26,.45)', marginTop: 2 }}>{meta.code}</div>
+                  <div style={{ font: '400 10px/1.3 IBM Plex Mono', color: 'rgba(32,30,26,.45)', marginTop: 2 }}></div>
                 </div>
               </div>
             </div>
