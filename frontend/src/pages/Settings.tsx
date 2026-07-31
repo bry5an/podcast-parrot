@@ -18,12 +18,13 @@ import {
   saveSeekStepSeconds,
 } from '../lib/keybindings';
 import type { KeybindingAction, Keymap } from '../lib/keybindings';
+import { loadTextSize, saveTextSize } from '../lib/readingAids';
+import type { TextSize } from '../lib/readingAids';
 
 type SectionId = 'playback' | 'transcription' | 'reading-aids' | 'library-storage' | 'appearance';
 type PlaybackSpeed = '0.75x' | '1x' | '1.25x' | '1.5x';
 type SeekStep = '3s' | '5s' | '10s';
 type ComputeDevice = 'cpu' | 'gpu';
-type TextSize = 'S' | 'M' | 'L';
 type Theme = 'warm' | 'light' | 'dark';
 
 function formatBytes(bytes: number): string {
@@ -248,6 +249,11 @@ export function Settings() {
     saveSeekStepSeconds(SEEK_STEP_SECONDS[value]);
   };
 
+  const handleTextSizeChange = (value: TextSize) => {
+    setTextSize(value);
+    saveTextSize(value);
+  };
+
   const [selectedModel, setSelectedModel] = useState('small');
   const [computeDevice, setComputeDevice] = useState<ComputeDevice>('gpu');
   const [cacheTranscripts, setCacheTranscripts] = useState(true);
@@ -255,7 +261,7 @@ export function Settings() {
   const [furigana, setFurigana] = useState(true);
   const [romaji, setRomaji] = useState(false);
   const [dimInactive, setDimInactive] = useState(true);
-  const [textSize, setTextSize] = useState<TextSize>('M');
+  const [textSize, setTextSize] = useState<TextSize>(() => loadTextSize());
 
   const [autoRemove, setAutoRemove] = useState<AutoRemovePolicy>('never');
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
@@ -502,7 +508,7 @@ export function Settings() {
                     { value: 'L' as TextSize, label: 'L' },
                   ]}
                   value={textSize}
-                  onChange={setTextSize}
+                  onChange={handleTextSizeChange}
                 />
               }
             />

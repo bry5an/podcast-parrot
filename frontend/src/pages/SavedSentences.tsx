@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Ruby } from '../components/Ruby';
 import { findActiveIndex } from '../lib/transcriptSync';
+import { loadTextSize, TEXT_SIZE_PX } from '../lib/readingAids';
 import { useProfiles } from '../state/ProfileContext';
 import { useToast } from '../state/ToastContext';
 import type { SavedSentence, Sentence } from '../lib/types';
@@ -30,6 +31,7 @@ export function SavedSentences() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeClipRef = useRef<SavedSentence | null>(null);
   const showFurigana = currentProfile?.show_furigana ?? true;
+  const [textSize] = useState(() => loadTextSize());
 
   const refresh = useCallback(() => {
     if (!currentProfile) return;
@@ -225,6 +227,7 @@ export function SavedSentences() {
                         data-active={i === activeIdx}
                         style={{
                           ...clipSentenceRowStyle,
+                          fontSize: TEXT_SIZE_PX[textSize],
                           ...(i === activeIdx ? clipSentenceRowActiveStyle : {}),
                           display: 'flex',
                           alignItems: 'center',

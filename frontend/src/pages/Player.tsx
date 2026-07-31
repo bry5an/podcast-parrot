@@ -8,6 +8,7 @@ import { useToast } from '../state/ToastContext';
 import { invokeTauri, listenTauri } from '../lib/tauri';
 import { eventMatchesModifier, loadKeymap, loadSeekStepSeconds, normalizeKey } from '../lib/keybindings';
 import { findActiveIndex } from '../lib/transcriptSync';
+import { loadTextSize, TEXT_SIZE_PX } from '../lib/readingAids';
 import type { DictionaryEntry, Episode, Podcast, Sentence, Transcript } from '../lib/types';
 
 interface WordPopupState {
@@ -53,6 +54,7 @@ export function Player() {
   const [loopOne, setLoopOne] = useState(false);
   const [speedIdx, setSpeedIdx] = useState(1);
   const [showFurigana, setShowFurigana] = useState(true);
+  const [textSize] = useState(() => loadTextSize());
   const [, setShadowed] = useState<Set<number>>(new Set());
   const [doneToday, setDoneToday] = useState(0);
   const [selectMode, setSelectMode] = useState(false);
@@ -498,6 +500,7 @@ export function Player() {
                       data-selected={isSelected}
                       style={{
                         ...sentenceRowStyle,
+                        fontSize: TEXT_SIZE_PX[textSize],
                         ...(i === activeIndex ? sentenceRowActiveStyle : {}),
                         ...(isSelected ? sentenceRowSelectedStyle : {}),
                       }}
