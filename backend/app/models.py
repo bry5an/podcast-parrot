@@ -131,6 +131,19 @@ class ShadowEvent(SQLModel, table=True):
     shadowed_at: datetime = Field(default_factory=datetime.utcnow, index=True)
 
 
+class AutoRemovePolicy(str, Enum):
+    never = "never"
+    seven_days = "7d"
+    thirty_days = "30d"
+
+
+class AppSettings(SQLModel, table=True):
+    # Single-row table: id is always 1. No per-profile concept here — storage
+    # and auto-remove are app-wide, not per learner profile.
+    id: int | None = Field(default=1, primary_key=True)
+    auto_remove: AutoRemovePolicy = Field(default=AutoRemovePolicy.never)
+
+
 class SavedSentence(SQLModel, table=True):
     # Sentences are immutable once a Transcript is built (see
     # services/transcripts.py — never deleted/rebuilt), so referencing them by

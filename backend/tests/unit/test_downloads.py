@@ -1,8 +1,15 @@
 import httpx
+import pytest
 
 from app.models import DownloadStatus, Episode, Podcast, PodcastKind, TranscriptStatus
 from app.services import youtube
-from app.services.downloads import download_episode_audio, retry_transcription
+from app.services.downloads import (
+    RelocateStorageError,
+    download_episode_audio,
+    relocate_storage,
+    remove_audio,
+    retry_transcription,
+)
 
 
 def _make_podcast(session, **overrides) -> Podcast:
@@ -58,7 +65,7 @@ class _FakeStream:
 
 def _patch_common(monkeypatch, session, tmp_path):
     monkeypatch.setattr("app.services.downloads.engine", session.get_bind())
-    monkeypatch.setattr("app.services.downloads.STORAGE_DIR", tmp_path)
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
     monkeypatch.setattr("app.services.downloads.ingest_transcript", lambda *args, **kwargs: None)
 
 
@@ -171,7 +178,7 @@ def test_retry_transcription_calls_ingest_transcript(session, monkeypatch, tmp_p
         session, podcast, local_audio_path="1.mp3", transcript_status=TranscriptStatus.queued
     )
     monkeypatch.setattr("app.services.downloads.engine", session.get_bind())
-    monkeypatch.setattr("app.services.downloads.STORAGE_DIR", tmp_path)
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
 
     calls = []
     monkeypatch.setattr(
@@ -188,7 +195,7 @@ def test_retry_transcription_noop_without_local_audio(session, monkeypatch, tmp_
     podcast = _make_podcast(session)
     episode = _make_episode(session, podcast, local_audio_path=None)
     monkeypatch.setattr("app.services.downloads.engine", session.get_bind())
-    monkeypatch.setattr("app.services.downloads.STORAGE_DIR", tmp_path)
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
 
     calls = []
     monkeypatch.setattr(
@@ -203,7 +210,7 @@ def test_retry_transcription_noop_without_local_audio(session, monkeypatch, tmp_
 
 def test_retry_transcription_noop_for_missing_episode(session, monkeypatch, tmp_path):
     monkeypatch.setattr("app.services.downloads.engine", session.get_bind())
-    monkeypatch.setattr("app.services.downloads.STORAGE_DIR", tmp_path)
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
 
     calls = []
     monkeypatch.setattr(
@@ -214,3 +221,64 @@ def test_retry_transcription_noop_for_missing_episode(session, monkeypatch, tmp_
     retry_transcription(999)
 
     assert calls == []
+
+
+def test_remove_audio_unlinks_file_and_resets_status(session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
+    (tmp_path / "1.mp3").write_bytes(b"audio")
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast, local_audio_path="1.mp3", download_status=DownloadStatus.downloaded)
+
+    remove_audio(session, episode)
+    session.commit()
+
+    assert not (tmp_path / "1.mp3").exists()
+    assert episode.local_audio_path is None
+    assert episode.download_status == DownloadStatus.idle
+
+
+def test_remove_audio_noop_without_local_path(session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast, local_audio_path=None, download_status=DownloadStatus.idle)
+
+    remove_audio(session, episode)
+
+    assert episode.download_status == DownloadStatus.idle
+
+
+def test_relocate_storage_moves_files_and_updates_storage_dir(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.data_dir", lambda: tmp_path)
+    old_root = tmp_path / "storage"
+    old_root.mkdir()
+    (old_root / "1.mp3").write_bytes(b"audio")
+    new_root = tmp_path / "elsewhere"
+
+    from app import paths
+
+    result = relocate_storage(new_root)
+
+    assert result == new_root
+    assert (new_root / "1.mp3").exists()
+    assert not (old_root / "1.mp3").exists()
+    assert paths.storage_dir() == new_root
+
+
+def test_relocate_storage_rejects_non_empty_target(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.data_dir", lambda: tmp_path)
+    (tmp_path / "storage").mkdir()
+    new_root = tmp_path / "elsewhere"
+    new_root.mkdir()
+    (new_root / "existing.txt").write_bytes(b"nope")
+
+    with pytest.raises(RelocateStorageError):
+        relocate_storage(new_root)
+
+
+def test_relocate_storage_is_noop_when_target_matches_current(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.data_dir", lambda: tmp_path)
+    (tmp_path / "storage").mkdir()
+
+    result = relocate_storage(tmp_path / "storage")
+
+    assert result == tmp_path / "storage"

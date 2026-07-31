@@ -166,3 +166,21 @@ export interface DictionaryEntry {
   reading: string | null;
   senses: DictionarySense[];
 }
+
+export interface StorageStats {
+  bytes_used: number;
+  episode_count: number;
+  storage_root: string;
+}
+
+export type AutoRemovePolicy = 'never' | '7d' | '30d';
+
+export interface AppSettings {
+  auto_remove: AutoRemovePolicy;
+  storage_root: string;
+}
+
+export interface AppSettingsUpdate {
+  auto_remove?: AutoRemovePolicy;
+  storage_root?: string;
+}

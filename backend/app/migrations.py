@@ -9,7 +9,7 @@ from sqlmodel import SQLModel
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = 3
+CURRENT_VERSION = 4
 
 Migration = Callable[[sqlite3.Connection], None]
 
@@ -77,10 +77,27 @@ def _make_podcast_kind_aware(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE UNIQUE INDEX ix_podcast_youtube_playlist_url ON podcast (youtube_playlist_url)")
 
 
+def _add_app_settings_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE appsettings (
+            id INTEGER NOT NULL,
+            auto_remove VARCHAR(6) NOT NULL,
+            PRIMARY KEY (id)
+        )
+        """
+    )
+    conn.execute("INSERT INTO appsettings (id, auto_remove) VALUES (1, 'never')")
+
+
 # Keyed by the version each step migrates *to*. Version 1 is exactly the schema
 # `SQLModel.metadata.create_all()` produces, so it has no step here — both a
 # brand-new database and a pre-migration one are simply stamped at that version.
-MIGRATIONS: dict[int, Migration] = {2: _add_saved_sentence_table, 3: _make_podcast_kind_aware}
+MIGRATIONS: dict[int, Migration] = {
+    2: _add_saved_sentence_table,
+    3: _make_podcast_kind_aware,
+    4: _add_app_settings_table,
+}
 
 
 class SchemaTooNewError(RuntimeError):
@@ -90,6 +107,11 @@ class SchemaTooNewError(RuntimeError):
 def run(db_path: Path, engine: Engine) -> None:
     if not db_path.exists():
         SQLModel.metadata.create_all(engine)
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        try:
+            conn.execute("INSERT INTO appsettings (id, auto_remove) VALUES (1, 'never')")
+        finally:
+            conn.close()
         _stamp(db_path, CURRENT_VERSION)
         return
 

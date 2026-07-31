@@ -1,4 +1,16 @@
-from app.models import DownloadStatus, Episode, Podcast, Transcript, TranscriptSource, TranscriptStatus
+from datetime import datetime, timedelta
+
+from app.models import (
+    AppSettings,
+    AutoRemovePolicy,
+    DownloadStatus,
+    Episode,
+    PlaybackState,
+    Podcast,
+    Transcript,
+    TranscriptSource,
+    TranscriptStatus,
+)
 from app.services.recovery import recover_startup_state
 
 
@@ -94,7 +106,7 @@ def test_recover_leaves_non_downloading_status_untouched(session):
 
 
 def test_recover_deletes_stale_part_files(session, monkeypatch, tmp_path):
-    monkeypatch.setattr("app.services.recovery.STORAGE_DIR", tmp_path)
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
     part_file = tmp_path / "1.part"
     part_file.write_bytes(b"partial")
     keep_file = tmp_path / "2.mp3"
@@ -107,7 +119,7 @@ def test_recover_deletes_stale_part_files(session, monkeypatch, tmp_path):
 
 
 def test_recover_handles_missing_storage_dir(session, monkeypatch, tmp_path):
-    monkeypatch.setattr("app.services.recovery.STORAGE_DIR", tmp_path / "does-not-exist")
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path / "does-not-exist")
 
     recover_startup_state(session)
 
@@ -123,3 +135,73 @@ def test_recover_deletes_stale_model_part_files(session, monkeypatch, tmp_path):
 
     assert not part_file.exists()
     assert keep_file.exists()
+
+
+def test_sweep_auto_remove_does_nothing_when_policy_is_never(session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast, local_audio_path="1.mp3", download_status=DownloadStatus.downloaded)
+    (tmp_path / "1.mp3").write_bytes(b"audio")
+    session.add(AppSettings(id=1, auto_remove=AutoRemovePolicy.never))
+    session.add(
+        PlaybackState(
+            profile_id=1, episode_id=episode.id, position_seconds=10, updated_at=datetime.utcnow() - timedelta(days=90)
+        )
+    )
+    session.commit()
+
+    recover_startup_state(session)
+
+    session.refresh(episode)
+    assert episode.download_status == DownloadStatus.downloaded
+    assert (tmp_path / "1.mp3").exists()
+
+
+def test_sweep_auto_remove_deletes_audio_past_cutoff(session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
+    podcast = _make_podcast(session)
+    stale = _make_episode(
+        session, podcast, guid="stale", local_audio_path="1.mp3", download_status=DownloadStatus.downloaded
+    )
+    fresh = _make_episode(
+        session, podcast, guid="fresh", local_audio_path="2.mp3", download_status=DownloadStatus.downloaded
+    )
+    (tmp_path / "1.mp3").write_bytes(b"audio")
+    (tmp_path / "2.mp3").write_bytes(b"audio")
+    session.add(AppSettings(id=1, auto_remove=AutoRemovePolicy.seven_days))
+    session.add(
+        PlaybackState(
+            profile_id=1, episode_id=stale.id, position_seconds=10, updated_at=datetime.utcnow() - timedelta(days=30)
+        )
+    )
+    session.add(
+        PlaybackState(
+            profile_id=1, episode_id=fresh.id, position_seconds=10, updated_at=datetime.utcnow() - timedelta(days=1)
+        )
+    )
+    session.commit()
+
+    recover_startup_state(session)
+
+    session.refresh(stale)
+    session.refresh(fresh)
+    assert stale.download_status == DownloadStatus.idle
+    assert stale.local_audio_path is None
+    assert not (tmp_path / "1.mp3").exists()
+    assert fresh.download_status == DownloadStatus.downloaded
+    assert (tmp_path / "2.mp3").exists()
+
+
+def test_sweep_auto_remove_ignores_episodes_never_played(session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast, local_audio_path="1.mp3", download_status=DownloadStatus.downloaded)
+    (tmp_path / "1.mp3").write_bytes(b"audio")
+    session.add(AppSettings(id=1, auto_remove=AutoRemovePolicy.seven_days))
+    session.commit()
+
+    recover_startup_state(session)
+
+    session.refresh(episode)
+    assert episode.download_status == DownloadStatus.downloaded
+    assert (tmp_path / "1.mp3").exists()

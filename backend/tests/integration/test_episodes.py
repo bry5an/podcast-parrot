@@ -237,7 +237,7 @@ def test_start_transcription_noop_when_already_transcribed(client, session, monk
 
 
 def test_delete_download(client, session, monkeypatch, tmp_path):
-    monkeypatch.setattr("app.api.episodes.STORAGE_DIR", tmp_path)
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
     podcast = _make_podcast(session)
     audio_file = tmp_path / "1.mp3"
     audio_file.write_bytes(b"fake audio")
@@ -257,7 +257,7 @@ def test_delete_download(client, session, monkeypatch, tmp_path):
 
 
 def test_delete_download_cancels_pending_transcription(client, session, monkeypatch, tmp_path):
-    monkeypatch.setattr("app.api.episodes.STORAGE_DIR", tmp_path)
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
     podcast = _make_podcast(session)
     audio_file = tmp_path / "1.mp3"
     audio_file.write_bytes(b"fake audio")
@@ -359,7 +359,7 @@ def test_get_transcript_unavailable_returns_404(client, session):
 
 
 def test_stream_audio_serves_file_regardless_of_transcript_status(client, session, monkeypatch, tmp_path):
-    monkeypatch.setattr("app.api.episodes.STORAGE_DIR", tmp_path)
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
     podcast = _make_podcast(session)
     audio_file = tmp_path / "1.mp3"
     audio_file.write_bytes(b"fake audio")

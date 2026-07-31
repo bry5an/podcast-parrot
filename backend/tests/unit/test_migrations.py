@@ -34,7 +34,7 @@ def test_pre_migration_database_is_backed_up_and_stamped(tmp_path):
     # that existed at version 1 (no schema had changed yet) but user_version 0.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    v1_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "savedsentence"]
+    v1_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("savedsentence", "appsettings")]
     SQLModel.metadata.create_all(engine, tables=v1_tables)
     assert _user_version(db_path) == 0
 
@@ -74,7 +74,7 @@ def test_v1_database_gains_a_working_savedsentence_table(tmp_path):
     # migration shipped looks like.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    v1_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "savedsentence"]
+    v1_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("savedsentence", "appsettings")]
     SQLModel.metadata.create_all(engine, tables=v1_tables)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute("PRAGMA user_version = 1")
