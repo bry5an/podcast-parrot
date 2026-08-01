@@ -84,6 +84,8 @@ export const api = {
     request<void>(`/api/profiles/${profileId}/podcasts/${podcastId}`, { method: 'POST' }),
   unsubscribe: (profileId: number, podcastId: number) =>
     request<void>(`/api/profiles/${profileId}/podcasts/${podcastId}`, { method: 'DELETE' }),
+  deleteFeed: (profileId: number, podcastId: number) =>
+    request<void>(`/api/profiles/${profileId}/podcasts/${podcastId}/feed`, { method: 'DELETE' }),
 
   listEpisodes: (
     podcastId: number,

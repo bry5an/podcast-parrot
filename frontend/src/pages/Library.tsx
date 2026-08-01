@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { AddPodcastPanel } from '../components/AddPodcastPanel';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { api } from '../lib/api';
 import { DIRECTION_META, PALETTE } from '../lib/palette';
 import { useProfiles } from '../state/ProfileContext';
+import { useToast } from '../state/ToastContext';
 import type { Podcast } from '../lib/types';
 
 export function Library() {
   const { currentProfile, clearProfile, loading } = useProfiles();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [subscriptions, setSubscriptions] = useState<Podcast[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Podcast | null>(null);
 
   const refreshSubscriptions = useCallback(() => {
     if (!currentProfile) return;
@@ -34,6 +38,21 @@ export function Library() {
   const unfollow = async (podcastId: number) => {
     await api.unsubscribe(currentProfile.id, podcastId);
     refreshSubscriptions();
+  };
+
+  const deleteFeed = async (podcast: Podcast) => {
+    setDeleteTarget(null);
+    try {
+      await api.deleteFeed(currentProfile.id, podcast.id);
+      showToast(`Deleted "${podcast.title}"`);
+      refreshSubscriptions();
+    } catch (err) {
+      const blocked = err instanceof Error && err.message.startsWith('409');
+      showToast(
+        blocked ? 'This feed is still followed by another profile' : 'Failed to delete feed',
+        'error',
+      );
+    }
   };
 
   return (
@@ -178,6 +197,11 @@ export function Library() {
                           <path d="M5 5l10 10M15 5L5 15" />
                         </svg>
                       </button>
+                      <button onClick={() => setDeleteTarget(p)} style={unfollowBtnStyle} title="Delete feed">
+                        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6}>
+                          <path d="M4.5 6h11M8 6V4.5h4V6M6 6l.6 9.5a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9L14 6" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 );
@@ -199,6 +223,16 @@ export function Library() {
               language={currentProfile.direction === 'en_ja' ? 'ja' : 'en'}
               onClose={() => setAddOpen(false)}
               onSubscriptionChange={refreshSubscriptions}
+            />
+          )}
+
+          {deleteTarget && (
+            <ConfirmDialog
+              title="Delete this feed?"
+              message={`This permanently removes "${deleteTarget.title}" and all downloaded episodes, transcripts, and saved sentences for it. This can't be undone.`}
+              confirmLabel="Delete feed"
+              onConfirm={() => deleteFeed(deleteTarget)}
+              onCancel={() => setDeleteTarget(null)}
             />
           )}
     </div>

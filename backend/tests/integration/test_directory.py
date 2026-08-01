@@ -1,4 +1,6 @@
-from app.models import Podcast, PodcastSource
+from sqlmodel import select
+
+from app.models import Episode, Podcast, PodcastSource, Sentence, Subscription, Transcript
 from app.services.rss import FeedFetchError
 from app.services.youtube import YoutubeFetchError
 
@@ -17,6 +19,21 @@ def _make_podcast(session, **overrides) -> Podcast:
     session.commit()
     session.refresh(podcast)
     return podcast
+
+
+def _make_episode(session, podcast: Podcast, **overrides) -> Episode:
+    defaults = dict(
+        podcast_id=podcast.id,
+        guid="guid-1",
+        title="Episode",
+        audio_url="https://example.com/audio.mp3",
+    )
+    defaults.update(overrides)
+    episode = Episode(**defaults)
+    session.add(episode)
+    session.commit()
+    session.refresh(episode)
+    return episode
 
 
 def test_search_directory_lists_all(client, session):
@@ -187,4 +204,56 @@ def test_unsubscribe(client, session):
 
 def test_unsubscribe_missing_returns_404(client):
     response = client.delete("/api/profiles/999/podcasts/999")
+    assert response.status_code == 404
+
+
+def test_delete_feed(client, session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
+    podcast = _make_podcast(session)
+    profile_id = client.post("/api/profiles", json={"name": "Kenji"}).json()["id"]
+    client.post(f"/api/profiles/{profile_id}/podcasts/{podcast.id}")
+
+    audio_file = tmp_path / "1.mp3"
+    audio_file.write_bytes(b"fake audio")
+    episode = _make_episode(session, podcast, local_audio_path="1.mp3")
+    transcript = Transcript(episode_id=episode.id)
+    session.add(transcript)
+    session.commit()
+    session.refresh(transcript)
+    sentence = Sentence(transcript_id=transcript.id, index=0, start_time=0, end_time=1, text="hello")
+    session.add(sentence)
+    session.commit()
+
+    response = client.delete(f"/api/profiles/{profile_id}/podcasts/{podcast.id}/feed")
+    assert response.status_code == 204
+
+    assert not audio_file.exists()
+    assert session.get(Podcast, podcast.id) is None
+    assert session.get(Episode, episode.id) is None
+    assert session.get(Transcript, transcript.id) is None
+    assert session.get(Sentence, sentence.id) is None
+    assert session.exec(select(Subscription).where(Subscription.podcast_id == podcast.id)).first() is None
+
+
+def test_delete_feed_blocked_by_other_profile(client, session):
+    podcast = _make_podcast(session)
+    profile_a = client.post("/api/profiles", json={"name": "Kenji"}).json()["id"]
+    profile_b = client.post("/api/profiles", json={"name": "Yuki"}).json()["id"]
+    client.post(f"/api/profiles/{profile_a}/podcasts/{podcast.id}")
+    client.post(f"/api/profiles/{profile_b}/podcasts/{podcast.id}")
+
+    response = client.delete(f"/api/profiles/{profile_a}/podcasts/{podcast.id}/feed")
+    assert response.status_code == 409
+    assert session.get(Podcast, podcast.id) is not None
+
+
+def test_delete_feed_missing_podcast_returns_404(client):
+    profile_id = client.post("/api/profiles", json={"name": "Kenji"}).json()["id"]
+    response = client.delete(f"/api/profiles/{profile_id}/podcasts/999/feed")
+    assert response.status_code == 404
+
+
+def test_delete_feed_missing_profile_returns_404(client, session):
+    podcast = _make_podcast(session)
+    response = client.delete(f"/api/profiles/999/podcasts/{podcast.id}/feed")
     assert response.status_code == 404
