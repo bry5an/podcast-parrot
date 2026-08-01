@@ -1,9 +1,11 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, SQLModel, select
 
 from app.db import get_session
 from app.models import Podcast, PodcastKind, PodcastSource, Profile, Subscription
-from app.services import podcasts, youtube
+from app.services import local_dir, podcasts, youtube
 from app.services.rss import FeedFetchError, fetch_podcast_metadata
 
 router = APIRouter(prefix="/api", tags=["directory"])
@@ -13,6 +15,7 @@ class PodcastRead(SQLModel):
     id: int
     rss_url: str | None
     youtube_playlist_url: str | None
+    local_directory_path: str | None
     kind: PodcastKind
     title: str
     description: str
@@ -31,11 +34,16 @@ class YoutubeAddRequest(SQLModel):
     playlist_url: str
 
 
+class LocalDirectoryAddRequest(SQLModel):
+    directory_path: str
+
+
 def _to_read(podcast: Podcast, subscribed_ids: set[int]) -> PodcastRead:
     return PodcastRead(
         id=podcast.id,
         rss_url=podcast.rss_url,
         youtube_playlist_url=podcast.youtube_playlist_url,
+        local_directory_path=podcast.local_directory_path,
         kind=podcast.kind,
         title=podcast.title,
         description=podcast.description,
@@ -112,6 +120,31 @@ def add_podcast_from_youtube(payload: YoutubeAddRequest, session: Session = Depe
     podcast = Podcast(
         youtube_playlist_url=playlist_url,
         kind=PodcastKind.youtube,
+        source=PodcastSource.user_added,
+        **metadata,
+    )
+    session.add(podcast)
+    session.commit()
+    session.refresh(podcast)
+    return _to_read(podcast, set())
+
+
+@router.post("/directory/local", response_model=PodcastRead)
+def add_podcast_from_local_directory(payload: LocalDirectoryAddRequest, session: Session = Depends(get_session)):
+    try:
+        directory = local_dir.validate_directory(Path(payload.directory_path))
+    except local_dir.LocalDirectoryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    directory_str = str(directory)
+    existing = session.exec(select(Podcast).where(Podcast.local_directory_path == directory_str)).first()
+    if existing:
+        return _to_read(existing, set())
+
+    metadata = local_dir.fetch_directory_metadata(directory)
+    podcast = Podcast(
+        local_directory_path=directory_str,
+        kind=PodcastKind.local_directory,
         source=PodcastSource.user_added,
         **metadata,
     )

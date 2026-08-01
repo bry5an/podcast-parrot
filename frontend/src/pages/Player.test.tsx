@@ -24,6 +24,7 @@ const podcast: Podcast = {
   id: 1,
   rss_url: 'https://example.com/feed.xml',
   youtube_playlist_url: null,
+  local_directory_path: null,
   kind: 'rss',
   title: 'Nihongo News',
   description: '',

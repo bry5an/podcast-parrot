@@ -5,11 +5,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlmodel import Session, SQLModel, select
 
-from app import paths
 from app.db import get_session
 from app.models import DownloadStatus, Episode, PlaybackState, Podcast, Sentence, TranscriptSource, TranscriptStatus
 from app.services import transcription
-from app.services.downloads import download_episode_audio, remove_audio, retry_transcription
+from app.services.downloads import download_episode_audio, remove_audio, resolve_audio_path, retry_transcription
 from app.services.episodes import sync_episodes
 from app.services.transcripts import get_or_build_transcript
 
@@ -229,8 +228,9 @@ def stream_audio(episode_id: int, session: Session = Depends(get_session)):
     if not episode.local_audio_path:
         raise HTTPException(status_code=404, detail="Episode has not been downloaded")
 
-    path = paths.storage_dir() / episode.local_audio_path
-    if not path.is_file():
+    podcast = session.get(Podcast, episode.podcast_id)
+    path = resolve_audio_path(podcast, episode)
+    if not path or not path.is_file():
         raise HTTPException(status_code=404, detail="Audio file missing on disk")
 
     media_type = mimetypes.guess_type(path.name)[0] or "audio/mpeg"

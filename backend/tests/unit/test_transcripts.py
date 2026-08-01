@@ -130,6 +130,104 @@ def test_ingest_transcript_succeeds_via_asr(session, monkeypatch):
     assert transcript.source == TranscriptSource.asr
 
 
+# --- Local directory sidecar transcripts (#90) ---------------------------
+
+
+def _make_local_directory_podcast(session, **overrides) -> Podcast:
+    defaults = dict(
+        rss_url=None,
+        local_directory_path="/fake/folder",
+        kind=PodcastKind.local_directory,
+        title="My Folder",
+        language="ja",
+    )
+    defaults.update(overrides)
+    podcast = Podcast(**defaults)
+    session.add(podcast)
+    session.commit()
+    session.refresh(podcast)
+    return podcast
+
+
+def test_ingest_transcript_uses_local_sidecar_srt(session, tmp_path):
+    sidecar = tmp_path / "episode1.srt"
+    sidecar.write_text("1\n00:00:00,000 --> 00:00:01,000\nこんにちは。\n")
+    audio = tmp_path / "episode1.mp3"
+
+    podcast = _make_local_directory_podcast(session, local_directory_path=str(tmp_path))
+    episode = _make_episode(
+        session,
+        podcast,
+        guid="episode1.mp3",
+        audio_url=str(audio),
+        transcript_source_url=str(sidecar),
+        transcript_source_type="srt",
+        transcript_status=TranscriptStatus.pending,
+    )
+
+    ingest_transcript(session, episode, audio_path=audio)
+
+    session.refresh(episode)
+    assert episode.transcript_status == TranscriptStatus.full
+    transcript = session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first()
+    assert transcript is not None
+    assert transcript.source == TranscriptSource.published
+    assert transcript.language == "ja"
+
+
+def test_ingest_transcript_falls_back_to_asr_when_no_local_sidecar(session, monkeypatch, tmp_path):
+    audio = tmp_path / "episode1.mp3"
+
+    podcast = _make_local_directory_podcast(session, local_directory_path=str(tmp_path))
+    episode = _make_episode(
+        session,
+        podcast,
+        guid="episode1.mp3",
+        audio_url=str(audio),
+        transcript_status=TranscriptStatus.none,
+    )
+
+    def fake_transcribe_audio(*args, **kwargs):
+        return [Cue(0.0, 1.0, "こんにちは。")], "ja"
+
+    monkeypatch.setattr("app.services.transcripts.transcribe_audio", fake_transcribe_audio)
+
+    ingest_transcript(session, episode, audio_path=audio)
+
+    session.refresh(episode)
+    assert episode.transcript_status == TranscriptStatus.auto
+    transcript = session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first()
+    assert transcript is not None
+    assert transcript.source == TranscriptSource.asr
+
+
+def test_ingest_transcript_falls_back_to_asr_when_sidecar_missing_on_disk(session, monkeypatch, tmp_path):
+    audio = tmp_path / "episode1.mp3"
+
+    podcast = _make_local_directory_podcast(session, local_directory_path=str(tmp_path))
+    episode = _make_episode(
+        session,
+        podcast,
+        guid="episode1.mp3",
+        audio_url=str(audio),
+        transcript_source_url=str(tmp_path / "missing.srt"),
+        transcript_source_type="srt",
+        transcript_status=TranscriptStatus.none,
+    )
+
+    def fake_transcribe_audio(*args, **kwargs):
+        return [Cue(0.0, 1.0, "こんにちは。")], "ja"
+
+    monkeypatch.setattr("app.services.transcripts.transcribe_audio", fake_transcribe_audio)
+
+    ingest_transcript(session, episode, audio_path=audio)
+
+    session.refresh(episode)
+    assert episode.transcript_status == TranscriptStatus.auto
+    transcript = session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first()
+    assert transcript.source == TranscriptSource.asr
+
+
 def test_ingest_transcript_no_audio_path_leaves_status_none(session):
     podcast = _make_podcast(session)
     episode = _make_episode(session, podcast)

@@ -231,6 +231,66 @@ def test_v2_podcast_table_gains_kind_and_youtube_columns(tmp_path):
     conn.close()
 
 
+def test_v4_podcast_table_gains_local_directory_path_column(tmp_path):
+    # Simulates a real pre-#90 install: the exact podcast schema that shipped
+    # after #85 (kind-aware) and #96 (appsettings), stamped at version 4.
+    db_path = tmp_path / "kotoba.db"
+    engine = _engine_for(db_path)
+    other_v4_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "podcast"]
+    SQLModel.metadata.create_all(engine, tables=other_v4_tables)
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    conn.execute(
+        """
+        CREATE TABLE podcast (
+            id INTEGER NOT NULL,
+            rss_url VARCHAR,
+            youtube_playlist_url VARCHAR,
+            kind VARCHAR(7) NOT NULL,
+            title VARCHAR NOT NULL,
+            description VARCHAR NOT NULL,
+            artwork_url VARCHAR,
+            language VARCHAR NOT NULL,
+            level_tag VARCHAR,
+            source VARCHAR(10) NOT NULL,
+            last_polled_at DATETIME,
+            PRIMARY KEY (id)
+        )
+        """
+    )
+    conn.execute("CREATE UNIQUE INDEX ix_podcast_rss_url ON podcast (rss_url)")
+    conn.execute("CREATE UNIQUE INDEX ix_podcast_youtube_playlist_url ON podcast (youtube_playlist_url)")
+    conn.execute(
+        "INSERT INTO podcast (id, rss_url, kind, title, description, language, source) "
+        "VALUES (1, 'https://example.com/feed.xml', 'rss', 'Nihongo News', '', 'ja', 'user_added')"
+    )
+    conn.execute("PRAGMA user_version = 4")
+    conn.close()
+
+    migrations.run(db_path, engine)
+
+    assert _user_version(db_path) == migrations.CURRENT_VERSION
+    conn = sqlite3.connect(db_path)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(podcast)")}
+    assert "local_directory_path" in columns
+
+    row = conn.execute("SELECT id, local_directory_path FROM podcast").fetchone()
+    assert row == (1, None)
+
+    # A new local-directory-sourced row is now insertable...
+    conn.execute(
+        "INSERT INTO podcast (rss_url, local_directory_path, kind, title, description, language, source) "
+        "VALUES (NULL, '/Users/kenji/podcasts', 'local_directory', 'Folder', '', 'ja', 'user_added')"
+    )
+    conn.commit()
+    # ...and local_directory_path uniqueness (ignoring the now-many NULLs) is enforced.
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO podcast (rss_url, local_directory_path, kind, title, description, language, source) "
+            "VALUES (NULL, '/Users/kenji/podcasts', 'local_directory', 'Dupe', '', 'ja', 'user_added')"
+        )
+    conn.close()
+
+
 def test_stamped_current_version_with_missing_table_fails_loudly(tmp_path):
     # Reproduces the #96/#97 incident: user_version says the schema is current,
     # but a table that version implies (appsettings) doesn't actually exist —

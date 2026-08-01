@@ -27,12 +27,14 @@ class PodcastSource(str, Enum):
 class PodcastKind(str, Enum):
     rss = "rss"
     youtube = "youtube"
+    local_directory = "local_directory"
 
 
 class Podcast(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     rss_url: str | None = Field(default=None, unique=True, index=True)
     youtube_playlist_url: str | None = Field(default=None, unique=True, index=True)
+    local_directory_path: str | None = Field(default=None, unique=True, index=True)
     kind: PodcastKind = Field(default=PodcastKind.rss)
     title: str
     description: str = ""

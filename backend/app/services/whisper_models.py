@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 from app import paths
 from app.db import engine
-from app.models import Episode, TranscriptStatus
+from app.models import Episode, Podcast, TranscriptStatus
 
 _HF_BASE = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 
@@ -183,7 +183,7 @@ def _retry_queued_transcriptions() -> None:
     # Deferred imports: transcription.py resolves the active model through this
     # module, so top-level imports here would cycle back through downloads.py/
     # transcripts.py -> transcription.py -> whisper_models.py.
-    from app import paths
+    from app.services.downloads import resolve_audio_path
     from app.services.transcripts import ingest_transcript
 
     with Session(engine) as session:
@@ -194,4 +194,7 @@ def _retry_queued_transcriptions() -> None:
             )
         ).all()
         for episode in episodes:
-            ingest_transcript(session, episode, audio_path=paths.storage_dir() / episode.local_audio_path)
+            podcast = session.get(Podcast, episode.podcast_id)
+            audio_path = resolve_audio_path(podcast, episode)
+            if audio_path is not None:
+                ingest_transcript(session, episode, audio_path=audio_path)

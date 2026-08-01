@@ -24,6 +24,28 @@ def _extension_for(url: str, content_type: str | None) -> str:
     return ".mp3"
 
 
+def resolve_audio_path(podcast: Podcast | None, episode: Episode) -> Path | None:
+    """Where an episode's audio actually lives on disk. Local-directory audio
+    stays in the user's own folder and is never copied into storage_dir(), so
+    local_audio_path holds an absolute path for that kind instead of a
+    filename to join with storage_dir()."""
+    if not episode.local_audio_path:
+        return None
+    if podcast and podcast.kind == PodcastKind.local_directory:
+        return Path(episode.local_audio_path)
+    return paths.storage_dir() / episode.local_audio_path
+
+
+def _link_local_audio(session: Session, episode: Episode) -> Path | None:
+    source = Path(episode.audio_url)
+    if not source.is_file():
+        episode.download_status = DownloadStatus.failed
+        session.add(episode)
+        session.commit()
+        return None
+    return source
+
+
 def _download_youtube_audio(session: Session, episode: Episode) -> Path | None:
     try:
         return youtube.download_audio(episode.audio_url, paths.storage_dir(), episode.id)
@@ -63,16 +85,22 @@ def download_episode_audio(episode_id: int) -> None:
             return
 
         podcast = session.get(Podcast, episode.podcast_id)
-        paths.storage_dir().mkdir(parents=True, exist_ok=True)
 
-        if podcast and podcast.kind == PodcastKind.youtube:
-            target = _download_youtube_audio(session, episode)
+        if podcast and podcast.kind == PodcastKind.local_directory:
+            target = _link_local_audio(session, episode)
+            if target is None:
+                return
+            episode.local_audio_path = str(target)
         else:
-            target = _download_rss_audio(session, episode)
-        if target is None:
-            return
+            paths.storage_dir().mkdir(parents=True, exist_ok=True)
+            if podcast and podcast.kind == PodcastKind.youtube:
+                target = _download_youtube_audio(session, episode)
+            else:
+                target = _download_rss_audio(session, episode)
+            if target is None:
+                return
+            episode.local_audio_path = target.name
 
-        episode.local_audio_path = target.name
         episode.download_status = DownloadStatus.downloaded
         session.add(episode)
         session.commit()
@@ -85,14 +113,22 @@ def retry_transcription(episode_id: int) -> None:
         episode = session.get(Episode, episode_id)
         if not episode or not episode.local_audio_path:
             return
-        ingest_transcript(session, episode, audio_path=paths.storage_dir() / episode.local_audio_path)
+        podcast = session.get(Podcast, episode.podcast_id)
+        audio_path = resolve_audio_path(podcast, episode)
+        if audio_path is None:
+            return
+        ingest_transcript(session, episode, audio_path=audio_path)
 
 
 def remove_audio(session: Session, episode: Episode) -> None:
     """Deletes an episode's downloaded audio file and resets its download
     state. Shared by the manual "delete download" action and the auto-remove
-    sweep so both stay in sync (see api/episodes.py, services/recovery.py)."""
-    if episode.local_audio_path:
+    sweep so both stay in sync (see api/episodes.py, services/recovery.py).
+    Local-directory episodes reference a file the app doesn't own — never
+    unlink it, just forget the reference (reopening relinks for free)."""
+    podcast = session.get(Podcast, episode.podcast_id)
+    is_local_directory = podcast is not None and podcast.kind == PodcastKind.local_directory
+    if episode.local_audio_path and not is_local_directory:
         (paths.storage_dir() / episode.local_audio_path).unlink(missing_ok=True)
     episode.local_audio_path = None
     episode.download_status = DownloadStatus.idle

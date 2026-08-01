@@ -223,6 +223,91 @@ def test_retry_transcription_noop_for_missing_episode(session, monkeypatch, tmp_
     assert calls == []
 
 
+def test_download_local_directory_episode_links_without_copying(session, monkeypatch, tmp_path):
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    audio = source_dir / "episode1.mp3"
+    audio.write_bytes(b"fake-audio")
+
+    podcast = _make_podcast(
+        session, rss_url=None, local_directory_path=str(source_dir), kind=PodcastKind.local_directory
+    )
+    episode = _make_episode(session, podcast, guid="episode1.mp3", audio_url=str(audio))
+    storage_dir = tmp_path / "storage"
+    _patch_common(monkeypatch, session, storage_dir)
+
+    download_episode_audio(episode.id)
+
+    assert not storage_dir.exists()
+    session.refresh(episode)
+    assert episode.download_status == DownloadStatus.downloaded
+    assert episode.local_audio_path == str(audio)
+    assert audio.exists()
+
+
+def test_download_local_directory_episode_marks_failed_when_file_missing(session, monkeypatch, tmp_path):
+    podcast = _make_podcast(
+        session, rss_url=None, local_directory_path=str(tmp_path), kind=PodcastKind.local_directory
+    )
+    episode = _make_episode(session, podcast, guid="gone.mp3", audio_url=str(tmp_path / "gone.mp3"))
+    _patch_common(monkeypatch, session, tmp_path / "storage")
+
+    download_episode_audio(episode.id)
+
+    session.refresh(episode)
+    assert episode.download_status == DownloadStatus.failed
+    assert episode.local_audio_path is None
+
+
+def test_retry_transcription_resolves_absolute_path_for_local_directory(session, monkeypatch, tmp_path):
+    podcast = _make_podcast(
+        session, rss_url=None, local_directory_path=str(tmp_path), kind=PodcastKind.local_directory
+    )
+    audio = tmp_path / "episode1.mp3"
+    episode = _make_episode(
+        session,
+        podcast,
+        guid="episode1.mp3",
+        audio_url=str(audio),
+        local_audio_path=str(audio),
+        transcript_status=TranscriptStatus.queued,
+    )
+    monkeypatch.setattr("app.services.downloads.engine", session.get_bind())
+
+    calls = []
+    monkeypatch.setattr(
+        "app.services.downloads.ingest_transcript",
+        lambda session, episode, audio_path=None: calls.append((episode.id, audio_path)),
+    )
+
+    retry_transcription(episode.id)
+
+    assert calls == [(episode.id, audio)]
+
+
+def test_remove_audio_does_not_unlink_local_directory_file(session, monkeypatch, tmp_path):
+    audio = tmp_path / "episode1.mp3"
+    audio.write_bytes(b"audio")
+    podcast = _make_podcast(
+        session, rss_url=None, local_directory_path=str(tmp_path), kind=PodcastKind.local_directory
+    )
+    episode = _make_episode(
+        session,
+        podcast,
+        guid="episode1.mp3",
+        audio_url=str(audio),
+        local_audio_path=str(audio),
+        download_status=DownloadStatus.downloaded,
+    )
+
+    remove_audio(session, episode)
+    session.commit()
+
+    assert audio.exists()
+    assert episode.local_audio_path is None
+    assert episode.download_status == DownloadStatus.idle
+
+
 def test_remove_audio_unlinks_file_and_resets_status(session, monkeypatch, tmp_path):
     monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
     (tmp_path / "1.mp3").write_bytes(b"audio")

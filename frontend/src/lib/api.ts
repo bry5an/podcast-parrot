@@ -78,6 +78,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ playlist_url: playlistUrl }),
     }),
+  addLocalDirectoryPodcast: (directoryPath: string) =>
+    request<Podcast>('/api/directory/local', {
+      method: 'POST',
+      body: JSON.stringify({ directory_path: directoryPath }),
+    }),
   listSubscriptions: (profileId: number) =>
     request<Podcast[]>(`/api/profiles/${profileId}/podcasts`),
   subscribe: (profileId: number, podcastId: number) =>
