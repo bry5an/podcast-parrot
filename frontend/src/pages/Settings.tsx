@@ -295,11 +295,11 @@ export function Settings() {
   const handleChangeLocation = async () => {
     if (!isTauri()) return;
     setStorageError(null);
-    const { open } = await import('@tauri-apps/plugin-dialog');
-    const selected = await open({ directory: true, multiple: false });
-    if (!selected || typeof selected !== 'string') return;
-    setRelocating(true);
     try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({ directory: true, multiple: false });
+      if (!selected || typeof selected !== 'string') return;
+      setRelocating(true);
       const updated = await api.updateSettings({ storage_root: selected });
       setStorageRoot(updated.storage_root);
       setStorageStats(await api.getStorageStats());
