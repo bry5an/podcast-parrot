@@ -177,6 +177,10 @@ def test_v2_podcast_table_gains_kind_and_youtube_columns(tmp_path):
     # with one real row in it, stamped at version 2.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
+    # Stamped at version 2, so savedsentence (added by the version-2 step) already
+    # exists; only podcast (rebuilt at version 3) and appsettings (version 4) don't.
+    other_v2_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("podcast", "appsettings")]
+    SQLModel.metadata.create_all(engine, tables=other_v2_tables)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute(
         """
@@ -225,6 +229,21 @@ def test_v2_podcast_table_gains_kind_and_youtube_columns(tmp_path):
             "VALUES ('https://example.com/feed.xml', 'rss', 'Dupe', '', 'ja', 'user_added')"
         )
     conn.close()
+
+
+def test_stamped_current_version_with_missing_table_fails_loudly(tmp_path):
+    # Reproduces the #96/#97 incident: user_version says the schema is current,
+    # but a table that version implies (appsettings) doesn't actually exist —
+    # e.g. because CURRENT_VERSION was bumped before its MIGRATIONS step landed.
+    db_path = tmp_path / "kotoba.db"
+    engine = _engine_for(db_path)
+    migrations.run(db_path, engine)
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    conn.execute("DROP TABLE appsettings")
+    conn.close()
+
+    with pytest.raises(migrations.SchemaMismatchError):
+        migrations.run(db_path, engine)
 
 
 def test_failed_migration_step_rolls_back_and_leaves_version_unchanged(tmp_path, monkeypatch):

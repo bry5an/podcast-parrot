@@ -104,6 +104,10 @@ class SchemaTooNewError(RuntimeError):
     pass
 
 
+class SchemaMismatchError(RuntimeError):
+    pass
+
+
 def run(db_path: Path, engine: Engine) -> None:
     if not db_path.exists():
         SQLModel.metadata.create_all(engine)
@@ -113,6 +117,7 @@ def run(db_path: Path, engine: Engine) -> None:
         finally:
             conn.close()
         _stamp(db_path, CURRENT_VERSION)
+        _verify_schema(db_path)
         return
 
     version = _read_version(db_path)
@@ -124,6 +129,7 @@ def run(db_path: Path, engine: Engine) -> None:
             f"successfully, or restore from a {db_path.name}.bak-* file."
         )
     if version == CURRENT_VERSION:
+        _verify_schema(db_path)
         return
 
     backup_path = db_path.with_name(f"{db_path.name}.bak-{version}")
@@ -144,6 +150,7 @@ def run(db_path: Path, engine: Engine) -> None:
         raise
     finally:
         conn.close()
+    _verify_schema(db_path)
     logger.info("Migrated %s from version %s to %s", db_path.name, version, CURRENT_VERSION)
 
 
@@ -161,3 +168,30 @@ def _stamp(db_path: Path, version: int) -> None:
         conn.execute(f"PRAGMA user_version = {version}")
     finally:
         conn.close()
+
+
+def _verify_schema(db_path: Path) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        existing_tables = {row[0] for row in conn.execute("select name from sqlite_master where type='table'")}
+        missing_tables = []
+        missing_columns = []
+        for table_name, table in SQLModel.metadata.tables.items():
+            if table_name not in existing_tables:
+                missing_tables.append(table_name)
+                continue
+            existing_columns = {row[1] for row in conn.execute(f'PRAGMA table_info("{table_name}")')}
+            for column in table.columns:
+                if column.name not in existing_columns:
+                    missing_columns.append(f"{table_name}.{column.name}")
+    finally:
+        conn.close()
+
+    if missing_tables or missing_columns:
+        raise SchemaMismatchError(
+            f"{db_path.name} is stamped at schema version {CURRENT_VERSION}, but its schema doesn't "
+            f"match: missing tables {missing_tables}, missing columns {missing_columns}. This usually "
+            f"means CURRENT_VERSION was bumped before its migration step landed, or a migration step "
+            f"failed in a way that still let the version stamp through. Restore from a "
+            f"{db_path.name}.bak-* file or repair the schema by hand."
+        )
