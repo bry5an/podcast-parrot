@@ -28,6 +28,28 @@ _WIKTIONARY_BOOK = {
     ]
 }
 
+_WIKTIONARY_ES_BOOK = {
+    "es": [
+        {
+            "partOfSpeech": "Interjection",
+            "definitions": [
+                {"definition": "<a>hello</a>, <a>hi</a>, <a>hey</a>"},
+            ],
+        }
+    ]
+}
+
+_WIKTIONARY_FR_BOOK = {
+    "fr": [
+        {
+            "partOfSpeech": "Noun",
+            "definitions": [
+                {"definition": "<b>greetings</b>; hello (general salutation)"},
+            ],
+        }
+    ]
+}
+
 _JISHO_BOOK = {
     "data": [
         {
@@ -70,6 +92,31 @@ def test_lookup_english_word_network_error_returns_none(monkeypatch):
     monkeypatch.setattr("app.services.dictionary.httpx.get", raise_error)
 
     assert lookup_word("book", "en") is None
+
+
+def test_lookup_spanish_word_uses_wiktionary_es_section(monkeypatch):
+    monkeypatch.setattr("app.services.dictionary.httpx.get", lambda *a, **k: _FakeResponse(_WIKTIONARY_ES_BOOK))
+
+    entry = lookup_word("hola", "es")
+
+    assert entry is not None
+    assert entry.word == "hola"
+    assert entry.reading is None
+    assert [s.model_dump() for s in entry.senses] == [
+        {"part_of_speech": "Interjection", "definitions": ["hello, hi, hey"]}
+    ]
+
+
+def test_lookup_french_word_uses_wiktionary_fr_section(monkeypatch):
+    monkeypatch.setattr("app.services.dictionary.httpx.get", lambda *a, **k: _FakeResponse(_WIKTIONARY_FR_BOOK))
+
+    entry = lookup_word("bonjour", "fr")
+
+    assert entry is not None
+    assert entry.word == "bonjour"
+    assert [s.model_dump() for s in entry.senses] == [
+        {"part_of_speech": "Noun", "definitions": ["greetings; hello (general salutation)"]}
+    ]
 
 
 def test_lookup_japanese_word_returns_reading_and_senses(monkeypatch):

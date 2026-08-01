@@ -3,7 +3,7 @@ def test_create_profile(client):
     assert response.status_code == 200
     body = response.json()
     assert body["name"] == "Kenji"
-    assert body["direction"] == "en_ja"
+    assert body["learning_language"] == "ja"
     assert body["show_furigana"] is True
     assert body["id"] is not None
 

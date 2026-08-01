@@ -23,7 +23,12 @@ def _strip_html(text: str) -> str:
     return _TAG_RE.sub("", text).strip()
 
 
-def _lookup_english(word: str) -> DictionaryEntry | None:
+def _lookup_wiktionary(word: str, language: str) -> DictionaryEntry | None:
+    # en.wiktionary.org's REST definition endpoint documents far more than
+    # English: a page's response is keyed by every language section that
+    # exists for that word (verified live — e.g. "hola" has an "es" section,
+    # "bonjour" has an "fr" section), so this one endpoint covers en/es/fr
+    # without a per-language source.
     url = f"https://en.wiktionary.org/api/rest_v1/page/definition/{quote(word)}"
     try:
         response = httpx.get(url, timeout=10.0, follow_redirects=True, headers={"User-Agent": _USER_AGENT})
@@ -34,7 +39,7 @@ def _lookup_english(word: str) -> DictionaryEntry | None:
         return None
 
     data = response.json()
-    entries = data.get("en") or []
+    entries = data.get(language) or []
     senses = []
     for entry in entries:
         definitions = [_strip_html(d["definition"]) for d in entry.get("definitions", []) if d.get("definition")]
@@ -74,6 +79,7 @@ def _lookup_japanese(word: str) -> DictionaryEntry | None:
 
 
 def lookup_word(word: str, language: str) -> DictionaryEntry | None:
-    if (language or "").startswith("ja"):
+    language = (language or "").strip()
+    if language.startswith("ja"):
         return _lookup_japanese(word)
-    return _lookup_english(word)
+    return _lookup_wiktionary(word, language[:2] or "en")

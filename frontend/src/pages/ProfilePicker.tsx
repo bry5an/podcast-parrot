@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { JapanesePackPrompt } from '../components/JapanesePackPrompt';
 import { api } from '../lib/api';
-import { DIRECTION_META, PALETTE } from '../lib/palette';
+import { LANGUAGE_META, PALETTE } from '../lib/palette';
 import { useProfiles } from '../state/ProfileContext';
 import { ASR_SETUP_SEEN_KEY } from './AsrSetup';
-import type { Direction } from '../lib/types';
+import type { LearningLanguage } from '../lib/types';
 
 const initial = (name: string) => (name.trim()[0] || '?').toUpperCase();
 
@@ -15,7 +15,7 @@ export function ProfilePicker() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [paletteIndex, setPaletteIndex] = useState(2);
-  const [direction, setDirection] = useState<Direction>('en_ja');
+  const [learningLanguage, setLearningLanguage] = useState<LearningLanguage>('ja');
   const [showFurigana, setShowFurigana] = useState(true);
   const [saving, setSaving] = useState(false);
   const [streaks, setStreaks] = useState<Record<number, number>>({});
@@ -49,7 +49,7 @@ export function ProfilePicker() {
   const startCreate = () => {
     setName('');
     setPaletteIndex(2);
-    setDirection('en_ja');
+    setLearningLanguage('ja');
     setShowFurigana(true);
     setCreating(true);
   };
@@ -61,13 +61,13 @@ export function ProfilePicker() {
       const profile = await api.createProfile({
         name: name.trim(),
         palette_index: paletteIndex,
-        direction,
+        learning_language: learningLanguage,
         show_furigana: showFurigana,
       });
       await refreshProfiles();
       setCreating(false);
 
-      if (profile.direction === 'en_ja') {
+      if (profile.learning_language === 'ja') {
         const packs = await api.listPacks();
         const japaneseInstalled = packs.find((p) => p.name === 'japanese')?.installed ?? false;
         if (!japaneseInstalled) {
@@ -107,7 +107,7 @@ export function ProfilePicker() {
           <div style={styles.tileRow}>
             {profiles.map((p) => {
               const swatch = PALETTE[p.palette_index % PALETTE.length];
-              const meta = DIRECTION_META[p.direction];
+              const meta = LANGUAGE_META[p.learning_language];
               return (
                 <div key={p.id} onClick={() => pick(p.id)} style={styles.tile}>
                   <div style={{ ...styles.avatar, background: swatch.art, boxShadow: `0 8px 24px ${swatch.shadow}` }}>
@@ -190,17 +190,16 @@ export function ProfilePicker() {
           </div>
 
           <div>
-            <label style={styles.label}>Learning direction</label>
-            <div style={{ display: 'flex', gap: 12 }}>
-              {(['en_ja', 'ja_en'] as Direction[]).map((d) => {
-                const m = DIRECTION_META[d];
-                const sel = direction === d;
+            <label style={styles.label}>What are you learning?</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {(['ja', 'en', 'es', 'fr'] as LearningLanguage[]).map((lang) => {
+                const m = LANGUAGE_META[lang];
+                const sel = learningLanguage === lang;
                 return (
                   <button
-                    key={d}
-                    onClick={() => setDirection(d)}
+                    key={lang}
+                    onClick={() => setLearningLanguage(lang)}
                     style={{
-                      flex: 1,
                       padding: '15px 14px',
                       borderRadius: 13,
                       cursor: 'pointer',
@@ -225,7 +224,7 @@ export function ProfilePicker() {
             </div>
           </div>
 
-          {direction === 'en_ja' && (
+          {learningLanguage === 'ja' && (
             <label style={styles.furiganaRow}>
               <div>
                 <div style={{ font: '600 13px/1.2 IBM Plex Sans' }}>Show furigana over kanji</div>

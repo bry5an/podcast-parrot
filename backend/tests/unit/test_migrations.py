@@ -129,8 +129,8 @@ def test_v1_database_gains_a_working_savedsentence_table(tmp_path):
     }
     # The table is actually usable, not just present.
     conn.execute(
-        "INSERT INTO profile (name, palette_index, direction, show_furigana, created_at) "
-        "VALUES ('Kenji', 0, 'en_ja', 1, '2024-01-01')"
+        "INSERT INTO profile (name, palette_index, learning_language, show_furigana, created_at) "
+        "VALUES ('Kenji', 0, 'ja', 1, '2024-01-01')"
     )
     conn.execute(
         "INSERT INTO podcast (rss_url, kind, title, description, language, source) "
@@ -362,6 +362,50 @@ def test_v5_profile_table_gains_last_used_at_column(tmp_path):
     assert "last_used_at" in columns
     row = conn.execute("SELECT id, name, last_used_at FROM profile").fetchone()
     assert row == (1, "Kenji", None)
+    conn.close()
+
+
+def test_v6_profile_direction_becomes_learning_language(tmp_path):
+    # Simulates a real pre-#89 install: the profile schema that shipped with
+    # a fixed native/target `direction` pair, with two real rows, stamped at
+    # version 6. The migration must value-map direction -> learning_language
+    # (en_ja -> ja, ja_en -> en) and drop the old column entirely.
+    db_path = tmp_path / "kotoba.db"
+    engine = _engine_for(db_path)
+    other_v6_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "profile"]
+    SQLModel.metadata.create_all(engine, tables=other_v6_tables)
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    conn.execute(
+        """
+        CREATE TABLE profile (
+            id INTEGER NOT NULL,
+            name VARCHAR NOT NULL,
+            palette_index INTEGER NOT NULL,
+            direction VARCHAR(5) NOT NULL,
+            show_furigana BOOLEAN NOT NULL,
+            created_at DATETIME NOT NULL,
+            last_used_at DATETIME,
+            PRIMARY KEY (id)
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO profile (id, name, palette_index, direction, show_furigana, created_at, last_used_at) "
+        "VALUES (1, 'Kenji', 0, 'en_ja', 1, '2024-01-01', NULL), "
+        "(2, 'Aoi', 1, 'ja_en', 1, '2024-01-01', '2026-01-01T00:00:00')"
+    )
+    conn.execute("PRAGMA user_version = 6")
+    conn.close()
+
+    migrations.run(db_path, engine)
+
+    assert _user_version(db_path) == migrations.CURRENT_VERSION
+    conn = sqlite3.connect(db_path)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(profile)")}
+    assert "learning_language" in columns
+    assert "direction" not in columns
+    rows = conn.execute("SELECT id, learning_language FROM profile ORDER BY id").fetchall()
+    assert rows == [(1, "ja"), (2, "en")]
     conn.close()
 
 

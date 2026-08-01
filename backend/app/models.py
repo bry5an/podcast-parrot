@@ -5,16 +5,18 @@ from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
 
-class Direction(str, Enum):
-    en_ja = "en_ja"  # learning Japanese, native English
-    ja_en = "ja_en"  # learning English, native Japanese
+class LearningLanguage(str, Enum):
+    ja = "ja"
+    en = "en"
+    es = "es"
+    fr = "fr"
 
 
 class Profile(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
     palette_index: int = Field(default=0)
-    direction: Direction = Field(default=Direction.en_ja)
+    learning_language: LearningLanguage = Field(default=LearningLanguage.ja)
     show_furigana: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_used_at: datetime | None = Field(default=None)

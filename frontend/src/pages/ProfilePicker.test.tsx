@@ -45,7 +45,7 @@ const existingProfile: Profile = {
   id: 1,
   name: 'Kenji',
   palette_index: 0,
-  direction: 'en_ja',
+  learning_language: 'ja',
   show_furigana: true,
   created_at: '2026-01-01T00:00:00Z',
   last_used_at: null,
@@ -120,7 +120,7 @@ describe('ProfilePicker', () => {
       id: 2,
       name: 'Aoi',
       palette_index: 2,
-      direction: 'en_ja',
+      learning_language: 'ja',
       show_furigana: true,
       created_at: '2026-01-02T00:00:00Z',
       last_used_at: null,
@@ -141,17 +141,17 @@ describe('ProfilePicker', () => {
     expect(api.createProfile).toHaveBeenCalledWith({
       name: 'Aoi',
       palette_index: 2,
-      direction: 'en_ja',
+      learning_language: 'ja',
       show_furigana: true,
     });
   });
 
-  it('prompts to install the Japanese pack after creating an en_ja profile when it is missing', async () => {
+  it('prompts to install the Japanese pack after creating a Japanese profile when it is missing', async () => {
     const created: Profile = {
       id: 2,
       name: 'Aoi',
       palette_index: 2,
-      direction: 'en_ja',
+      learning_language: 'ja',
       show_furigana: true,
       created_at: '2026-01-02T00:00:00Z',
       last_used_at: null,
@@ -168,12 +168,12 @@ describe('ProfilePicker', () => {
     expect(screen.getByText(/47 MB/)).toBeInTheDocument();
   });
 
-  it('never prompts for a ja_en profile even when the pack is missing', async () => {
+  it('never prompts for an English profile even when the pack is missing', async () => {
     const created: Profile = {
       id: 2,
       name: 'Kenji2',
       palette_index: 2,
-      direction: 'ja_en',
+      learning_language: 'en',
       show_furigana: true,
       created_at: '2026-01-02T00:00:00Z',
       last_used_at: null,
@@ -184,7 +184,7 @@ describe('ProfilePicker', () => {
     renderPicker();
 
     await userEvent.click(await screen.findByText('Add learner'));
-    await userEvent.click(screen.getByText('英語 · native Japanese').closest('button')!);
+    await userEvent.click(screen.getByText('🇺🇸').closest('button')!);
     await userEvent.type(screen.getByPlaceholderText('e.g. Kenji'), 'Kenji2');
     await userEvent.click(screen.getByRole('button', { name: 'Create profile' }));
 
@@ -193,12 +193,25 @@ describe('ProfilePicker', () => {
     expect(api.listPacks).not.toHaveBeenCalled();
   });
 
+  it('never prompts for the Japanese pack and hides the furigana toggle for a Spanish or French profile', async () => {
+    renderPicker();
+
+    await userEvent.click(await screen.findByText('Add learner'));
+    expect(screen.getByText('Show furigana over kanji')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('🇪🇸').closest('button')!);
+    expect(screen.queryByText('Show furigana over kanji')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('🇫🇷').closest('button')!);
+    expect(screen.queryByText('Show furigana over kanji')).not.toBeInTheDocument();
+  });
+
   it('installs the pack from the prompt and shows progress to completion', async () => {
     const created: Profile = {
       id: 2,
       name: 'Aoi',
       palette_index: 2,
-      direction: 'en_ja',
+      learning_language: 'ja',
       show_furigana: true,
       created_at: '2026-01-02T00:00:00Z',
       last_used_at: null,

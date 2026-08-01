@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, SQLModel, select
 
 from app.db import get_session
-from app.models import Direction, Profile
+from app.models import LearningLanguage, Profile
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
@@ -12,14 +12,14 @@ router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 class ProfileCreate(SQLModel):
     name: str
     palette_index: int = 0
-    direction: Direction = Direction.en_ja
+    learning_language: LearningLanguage = LearningLanguage.ja
     show_furigana: bool = True
 
 
 class ProfileUpdate(SQLModel):
     name: str | None = None
     palette_index: int | None = None
-    direction: Direction | None = None
+    learning_language: LearningLanguage | None = None
     show_furigana: bool | None = None
     last_used_at: datetime | None = None
 

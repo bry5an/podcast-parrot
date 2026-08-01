@@ -6,7 +6,7 @@ import fugashi
 from app import paths
 
 _KANJI_RE = re.compile(r"[一-鿿々]")  # CJK ideographs + 々 iteration mark
-_WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)*")
+_WORD_RE = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")
 _UNIDIC_DIR = paths.packs_dir() / "unidic"
 
 _tagger: fugashi.Tagger | None = None
@@ -51,8 +51,8 @@ def _tokenize_words(text: str) -> list[dict]:
 def build_segments(text: str, language: str) -> list[dict]:
     """Split `text` into the {base, reading} segments the Shadowing Player
     renders as ruby text. Japanese sentences get morpheme-by-morpheme
-    furigana; every other language (notably English, the ja_en direction's
-    target language) gets word-level segments with no readings. Also
+    furigana; every other language (English, Spanish, French) gets
+    word-level segments with no readings. Also
     collapses to a single segment when the Japanese language pack (#24)
     isn't installed yet, rather than raising."""
     if not text:
