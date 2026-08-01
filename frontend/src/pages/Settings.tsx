@@ -20,12 +20,13 @@ import {
 import type { KeybindingAction, Keymap } from '../lib/keybindings';
 import { loadTextSize, saveTextSize } from '../lib/readingAids';
 import type { TextSize } from '../lib/readingAids';
+import { loadTheme, saveTheme } from '../lib/theme';
+import type { Theme } from '../lib/theme';
 
 type SectionId = 'playback' | 'transcription' | 'reading-aids' | 'library-storage' | 'appearance';
 type PlaybackSpeed = '0.75x' | '1x' | '1.25x' | '1.5x';
 type SeekStep = '3s' | '5s' | '10s';
 type ComputeDevice = 'cpu' | 'gpu';
-type Theme = 'warm' | 'light' | 'dark';
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 MB';
@@ -128,7 +129,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () =
       aria-checked={checked}
       aria-label={label}
       onClick={onChange}
-      style={{ ...styles.toggleTrack, background: checked ? 'oklch(0.55 0.055 195)' : 'rgba(32,30,26,.15)' }}
+      style={{ ...styles.toggleTrack, background: checked ? 'var(--accent)' : 'rgb(var(--fg-rgb) / .15)' }}
     >
       <span style={{ ...styles.toggleThumb, transform: checked ? 'translateX(16px)' : 'translateX(0)' }} />
     </button>
@@ -269,7 +270,7 @@ export function Settings() {
   const [relocating, setRelocating] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
 
-  const [theme, setTheme] = useState<Theme>('warm');
+  const [theme, setTheme] = useState<Theme>(() => loadTheme());
 
   useEffect(() => {
     api.getStorageStats().then(setStorageStats).catch(() => setStorageError('Could not load storage usage'));
@@ -321,14 +322,14 @@ export function Settings() {
   };
 
   return (
-    <div style={{ position: 'relative', display: 'flex', height: '100vh', background: '#fbfaf7', color: '#211f1b' }}>
+    <div style={{ position: 'relative', display: 'flex', height: '100vh', background: 'var(--bg-page)', color: 'var(--fg)' }}>
       {/* sub-nav */}
       <div style={styles.navRail}>
         <button type="button" onClick={() => navigate('/library')} style={styles.backRow}>
           <Icon>
             <path d="M12 5l-5 5 5 5" />
           </Icon>
-          <span style={{ font: '600 14px/1 IBM Plex Sans', color: '#211f1b' }}>Settings</span>
+          <span style={{ font: '600 14px/1 IBM Plex Sans', color: 'var(--fg)' }}>Settings</span>
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 8 }}>
           {NAV_ITEMS.map((item) => (
@@ -441,7 +442,7 @@ export function Settings() {
                       <span style={styles.rowTitle}>{m.name}</span>
                       <span style={styles.sizeTag}>{m.size}</span>
                       {m.installed && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, font: '500 11px/1 IBM Plex Sans', color: 'rgba(32,30,26,.5)' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, font: '500 11px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .5)' }}>
                           <span style={styles.installedDot} /> installed
                         </span>
                       )}
@@ -449,8 +450,8 @@ export function Settings() {
                     <div style={styles.rowSubtitle}>{m.description}</div>
                   </div>
                   <div style={{ textAlign: 'right', flex: 'none' }}>
-                    <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgba(32,30,26,.6)' }}>{m.speed}</div>
-                    <div style={{ font: '400 11px/1.4 IBM Plex Mono', color: 'rgba(32,30,26,.4)' }}>{m.quality}</div>
+                    <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .6)' }}>{m.speed}</div>
+                    <div style={{ font: '400 11px/1.4 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .4)' }}>{m.quality}</div>
                   </div>
                 </button>
               );
@@ -540,14 +541,14 @@ export function Settings() {
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
                 <div style={styles.rowTitle}>Storage used</div>
-                <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgba(32,30,26,.6)' }}>
+                <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .6)' }}>
                   {storageStats
                     ? `${formatBytes(storageStats.bytes_used)} · ${storageStats.episode_count} episode${storageStats.episode_count === 1 ? '' : 's'}`
                     : 'Loading…'}
                 </div>
               </div>
               <div style={styles.storageBar}>
-                <div style={{ width: storageStats && storageStats.bytes_used > 0 ? '100%' : '0%', background: 'oklch(0.55 0.055 195)' }} />
+                <div style={{ width: storageStats && storageStats.bytes_used > 0 ? '100%' : '0%', background: 'var(--accent)' }} />
               </div>
             </div>
           </div>
@@ -577,7 +578,7 @@ export function Settings() {
               [
                 { id: 'warm' as Theme, label: 'Warm paper', swatch: '#f1ecdf' },
                 { id: 'light' as Theme, label: 'Light', swatch: '#ffffff' },
-                { id: 'dark' as Theme, label: 'Dark', swatch: '#211f1b' },
+                { id: 'dark' as Theme, label: 'Dark', swatch: '#1e1e2e' },
               ]
             ).map((t) => {
               const selected = theme === t.id;
@@ -586,10 +587,13 @@ export function Settings() {
                   key={t.id}
                   type="button"
                   aria-pressed={selected}
-                  onClick={() => setTheme(t.id)}
+                  onClick={() => {
+                    setTheme(t.id);
+                    saveTheme(t.id);
+                  }}
                   style={{ ...styles.themeCard, ...(selected ? styles.themeCardSelected : {}) }}
                 >
-                  <div style={{ ...styles.themeSwatch, background: t.swatch, border: t.id === 'light' ? '1px solid rgba(32,30,26,.1)' : 'none' }} />
+                  <div style={{ ...styles.themeSwatch, background: t.swatch, border: t.id === 'light' ? '1px solid rgb(var(--fg-rgb) / .1)' : 'none' }} />
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={styles.rowTitle}>{t.label}</span>
                     {selected && (
@@ -609,8 +613,8 @@ export function Settings() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  navRail: { width: 220, flex: 'none', borderRight: '1px solid rgba(32,30,26,.08)', display: 'flex', flexDirection: 'column', padding: '20px 14px' },
-  backRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px 16px', background: 'none', border: 'none', cursor: 'pointer', color: '#211f1b' },
+  navRail: { width: 220, flex: 'none', borderRight: '1px solid rgb(var(--fg-rgb) / .08)', display: 'flex', flexDirection: 'column', padding: '20px 14px' },
+  backRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px 16px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg)' },
   navItem: {
     display: 'flex',
     alignItems: 'center',
@@ -618,50 +622,50 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '9px 10px',
     borderRadius: 9,
     font: '500 13px/1 IBM Plex Sans',
-    color: 'rgba(32,30,26,.55)',
+    color: 'rgb(var(--fg-rgb) / .55)',
     background: 'none',
     border: 'none',
     cursor: 'pointer',
     textAlign: 'left',
   },
-  navItemActive: { background: 'rgba(32,30,26,.06)', font: '600 13px/1 IBM Plex Sans', color: '#211f1b' },
-  navFooter: { marginTop: 'auto', font: '400 10px/1.5 IBM Plex Mono', color: 'rgba(32,30,26,.35)', padding: '10px 6px 0' },
+  navItemActive: { background: 'var(--bg-hover)', font: '600 13px/1 IBM Plex Sans', color: 'var(--fg)' },
+  navFooter: { marginTop: 'auto', font: '400 10px/1.5 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .35)', padding: '10px 6px 0' },
   section: { maxWidth: 760, marginBottom: 40 },
   sectionTitle: { font: '600 20px/1.3 IBM Plex Sans', margin: '0 0 4px' },
-  sectionSubtitle: { font: '400 13px/1.6 IBM Plex Sans', color: 'rgba(32,30,26,.55)', margin: '0 0 16px' },
+  sectionSubtitle: { font: '400 13px/1.6 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)', margin: '0 0 16px' },
   sectionBody: { display: 'flex', flexDirection: 'column', gap: 14 },
-  card: { background: '#fff', border: '1px solid rgba(32,30,26,.08)', borderRadius: 14, overflow: 'hidden' },
-  settingRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '14px 18px', borderBottom: '1px solid rgba(32,30,26,.06)' },
-  rowIcon: { width: 30, height: 30, borderRadius: 8, background: 'rgba(32,30,26,.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', color: 'rgba(32,30,26,.6)' },
-  rowTitle: { font: '600 13.5px/1.3 IBM Plex Sans', color: '#211f1b' },
-  rowSubtitle: { font: '400 12px/1.5 IBM Plex Sans', color: 'rgba(32,30,26,.5)', marginTop: 2 },
-  keyBadge: { minWidth: 56, height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(32,30,26,.14)', background: '#fff', font: '600 12px/1 IBM Plex Mono', color: '#211f1b', cursor: 'pointer' },
-  keyBadgeListening: { border: '1.5px solid oklch(0.55 0.055 195)', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.08)' },
+  card: { background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .08)', borderRadius: 14, overflow: 'hidden' },
+  settingRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '14px 18px', borderBottom: '1px solid rgb(var(--fg-rgb) / .06)' },
+  rowIcon: { width: 30, height: 30, borderRadius: 8, background: 'rgb(var(--fg-rgb) / .05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', color: 'rgb(var(--fg-rgb) / .6)' },
+  rowTitle: { font: '600 13.5px/1.3 IBM Plex Sans', color: 'var(--fg)' },
+  rowSubtitle: { font: '400 12px/1.5 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .5)', marginTop: 2 },
+  keyBadge: { minWidth: 56, height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid rgb(var(--fg-rgb) / .14)', background: 'var(--bg-surface)', font: '600 12px/1 IBM Plex Mono', color: 'var(--fg)', cursor: 'pointer' },
+  keyBadgeListening: { border: '1.5px solid var(--accent)', color: 'var(--accent-strong)', background: 'var(--accent-soft)' },
   inlineRow: { display: 'flex', gap: 24, marginBottom: 14 },
-  groupLabel: { font: '500 11px/1 IBM Plex Mono', letterSpacing: '.04em', textTransform: 'uppercase', color: 'rgba(32,30,26,.45)', marginBottom: 8 },
+  groupLabel: { font: '500 11px/1 IBM Plex Mono', letterSpacing: '.04em', textTransform: 'uppercase', color: 'rgb(var(--fg-rgb) / .45)', marginBottom: 8 },
   segmentedRow: { display: 'flex', gap: 6 },
-  segmentBtn: { height: 34, padding: '0 14px', borderRadius: 17, border: '1px solid rgba(32,30,26,.14)', background: '#fff', color: 'rgba(32,30,26,.7)', font: '600 12.5px/1 IBM Plex Mono', cursor: 'pointer' },
-  segmentBtnActive: { background: '#211f1b', color: '#fff', border: '1px solid #211f1b' },
+  segmentBtn: { height: 34, padding: '0 14px', borderRadius: 17, border: '1px solid rgb(var(--fg-rgb) / .14)', background: 'var(--bg-surface)', color: 'rgb(var(--fg-rgb) / .7)', font: '600 12.5px/1 IBM Plex Mono', cursor: 'pointer' },
+  segmentBtnActive: { background: 'var(--fg)', color: 'var(--bg-page)', border: '1px solid var(--fg)' },
   toggleTrack: { width: 40, height: 24, borderRadius: 12, border: 'none', padding: 2, cursor: 'pointer', display: 'flex', alignItems: 'center' },
   toggleThumb: { width: 20, height: 20, borderRadius: 10, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'transform .15s ease' },
-  modelCard: { display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: '1px solid rgba(32,30,26,.06)', background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left' },
-  modelCardSelected: { background: 'oklch(0.55 0.055 195 / 0.08)' },
-  radioOuter: { width: 18, height: 18, borderRadius: '50%', border: '1.5px solid rgba(32,30,26,.25)', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  radioOuterSelected: { border: '1.5px solid oklch(0.55 0.055 195)' },
-  radioInner: { width: 9, height: 9, borderRadius: '50%', background: 'oklch(0.55 0.055 195)' },
-  sizeTag: { font: '500 10px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)', background: 'rgba(32,30,26,.06)', padding: '2px 6px', borderRadius: 5 },
-  installedDot: { width: 5, height: 5, borderRadius: '50%', background: 'oklch(0.55 0.055 195)', display: 'inline-block' },
-  secondaryBtn: { height: 34, padding: '0 16px', borderRadius: 17, border: '1px solid rgba(32,30,26,.14)', background: '#fff', color: '#211f1b', font: '600 12.5px/1 IBM Plex Sans', cursor: 'pointer' },
-  storageBar: { display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'rgba(32,30,26,.08)', marginTop: 10 },
+  modelCard: { display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: '1px solid rgb(var(--fg-rgb) / .06)', background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left' },
+  modelCardSelected: { background: 'var(--accent-soft)' },
+  radioOuter: { width: 18, height: 18, borderRadius: '50%', border: '1.5px solid rgb(var(--fg-rgb) / .25)', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  radioOuterSelected: { border: '1.5px solid var(--accent)' },
+  radioInner: { width: 9, height: 9, borderRadius: '50%', background: 'var(--accent)' },
+  sizeTag: { font: '500 10px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .5)', background: 'rgb(var(--fg-rgb) / .06)', padding: '2px 6px', borderRadius: 5 },
+  installedDot: { width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' },
+  secondaryBtn: { height: 34, padding: '0 16px', borderRadius: 17, border: '1px solid rgb(var(--fg-rgb) / .14)', background: 'var(--bg-surface)', color: 'var(--fg)', font: '600 12.5px/1 IBM Plex Sans', cursor: 'pointer' },
+  storageBar: { display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'rgb(var(--fg-rgb) / .08)', marginTop: 10 },
   storageErrorBanner: {
     font: '500 12px/1.4 IBM Plex Sans',
-    color: 'oklch(0.5 0.15 30)',
-    background: 'oklch(0.5 0.15 30 / 0.08)',
-    border: '1px solid oklch(0.5 0.15 30 / 0.25)',
+    color: 'var(--danger)',
+    background: 'var(--danger-soft)',
+    border: '1px solid var(--danger-border)',
     borderRadius: 10,
     padding: '10px 14px',
   },
-  themeCard: { flex: 1, padding: 10, borderRadius: 14, border: '1.5px solid rgba(32,30,26,.1)', background: '#fff', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' },
-  themeCardSelected: { border: '1.5px solid oklch(0.42 0.06 195)' },
+  themeCard: { flex: 1, padding: 10, borderRadius: 14, border: '1.5px solid rgb(var(--fg-rgb) / .1)', background: 'var(--bg-surface)', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' },
+  themeCardSelected: { border: '1.5px solid var(--accent-strong)' },
   themeSwatch: { height: 64, borderRadius: 9 },
 };

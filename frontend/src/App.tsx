@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { ProfilePicker } from './pages/ProfilePicker';
 import { Library } from './pages/Library';
@@ -6,8 +7,13 @@ import { Player } from './pages/Player';
 import { AsrSetup } from './pages/AsrSetup';
 import { Settings } from './pages/Settings';
 import { SavedSentences } from './pages/SavedSentences';
+import { applyTheme, loadTheme } from './lib/theme';
 
 function App() {
+  useEffect(() => {
+    applyTheme(loadTheme());
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={<ProfilePicker />} />
