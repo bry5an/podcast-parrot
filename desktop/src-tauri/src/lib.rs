@@ -43,7 +43,7 @@ pub fn run() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("error while building the Kotoba desktop shell")
+        .expect("error while building the Ausculto desktop shell")
         .run(|app_handle, event| match event {
             tauri::RunEvent::ExitRequested { api, .. } => {
                 sidecar::handle_exit_requested(app_handle.clone(), api.clone());

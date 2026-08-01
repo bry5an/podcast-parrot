@@ -452,7 +452,7 @@ export function Settings() {
             </button>
           ))}
         </div>
-        <div style={styles.navFooter}>Kotoba · local build · macOS</div>
+        <div style={styles.navFooter}>Ausculto · local build · macOS</div>
       </div>
 
       {/* content */}
@@ -528,7 +528,7 @@ export function Settings() {
           id="transcription"
           registerRef={registerRef}
           title="Transcription"
-          subtitle="When an episode has no published transcript, Kotoba generates one locally with Whisper. Larger models are more accurate but slower."
+          subtitle="When an episode has no published transcript, Ausculto generates one locally with Whisper. Larger models are more accurate but slower."
         >
           <div style={styles.card}>
             {models.map((m) => {

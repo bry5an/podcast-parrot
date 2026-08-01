@@ -89,7 +89,7 @@ At launch the Rust shell picks a free port and a random per-launch auth token, s
 
 **whisper-cli is built from source, statically (#62):** vendoring Homebrew's `whisper-cli` bundled a second copy of `libggml-base`/`libomp` alongside Homebrew's own, and ggml's dlopen plugin scan loaded both into one process — two OpenMP runtimes stepping on each other's thread-local state segfaulted on every transcription. `prepare_sidecars.sh` instead clones `ggml-org/whisper.cpp` at a pinned tag into `.cache/whisper-cpp/` and builds it with `-DBUILD_SHARED_LIBS=OFF -DGGML_BACKEND_DL=OFF -DGGML_OPENMP=OFF -DGGML_METAL_EMBED_LIBRARY=ON -DGGML_NATIVE=OFF`: no dlopen plugin scan and no second OpenMP runtime make the whole bug class structurally impossible, and the resulting binary is a single self-contained executable (`otool -L` shows only system frameworks) with nothing left to bundle or rpath-rewrite. `-DGGML_NATIVE=OFF` is load-bearing — without it cmake compiles `-mcpu=native`, and a binary built on one Apple Silicon generation would fault on another.
 
-**Code signing:** Tauri ad-hoc signs the `.app` (`codesign -s -`) by default, which is mandatory for any binary to execute on Apple Silicon but is *not* a Developer ID signature. A `.dmg` built and shared this way still needs `xattr -dr com.apple.quarantine Kotoba.app` on the receiving machine before it will open.
+**Code signing:** Tauri ad-hoc signs the `.app` (`codesign -s -`) by default, which is mandatory for any binary to execute on Apple Silicon but is *not* a Developer ID signature. A `.dmg` built and shared this way still needs `xattr -dr com.apple.quarantine Ausculto.app` on the receiving machine before it will open.
 
 ## Cleaning up
 

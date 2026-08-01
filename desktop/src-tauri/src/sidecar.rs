@@ -205,7 +205,7 @@ fn begin_shutdown(app: AppHandle, state: Arc<SidecarState>) {
             && !app
                 .dialog()
                 .message("A download or transcription is still in progress. Quitting now will stop it.")
-                .title("Quit Kotoba?")
+                .title("Quit Ausculto?")
                 .kind(MessageDialogKind::Warning)
                 .buttons(MessageDialogButtons::OkCancelCustom(
                     "Quit Anyway".to_string(),

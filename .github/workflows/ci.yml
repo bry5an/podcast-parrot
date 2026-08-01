@@ -164,7 +164,7 @@ jobs:
       # responds, so a broken kotoba-backend.spec / bundle.macOS.files
       # mapping fails CI instead of only surfacing on someone's install.
       - name: Smoke test the bundled backend
-        run: ./desktop/scripts/smoke_test.sh desktop/src-tauri/target/release/bundle/macos/Kotoba.app
+        run: ./desktop/scripts/smoke_test.sh desktop/src-tauri/target/release/bundle/macos/Ausculto.app
 
       - name: Upload dmg artifact
         uses: actions/upload-artifact@v7.0.1

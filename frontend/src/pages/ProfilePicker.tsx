@@ -110,7 +110,7 @@ export function ProfilePicker() {
             <path d="M6 10a4 4 0 0 1 8 0M8.5 10v4M11.5 10v4M10 3v3" />
           </svg>
         </div>
-        <span style={{ font: '600 14px/1 IBM Plex Sans' }}>Kotoba</span>
+        <span style={{ font: '600 14px/1 IBM Plex Sans' }}>Ausculto</span>
       </div>
 
       {!creating ? (

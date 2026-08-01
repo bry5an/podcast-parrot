@@ -1,7 +1,7 @@
 .PHONY: help install dev dev-web dev-backend dev-frontend sidecars build test test-backend test-frontend lint clean
 
 help:
-	@echo "podcast-parrot (Kotoba) — make targets"
+	@echo "podcast-parrot (Ausculto) — make targets"
 	@echo ""
 	@echo "  install       Install backend + frontend dependencies"
 	@echo "  dev           Build sidecars and run the full desktop app (npx tauri dev)"
