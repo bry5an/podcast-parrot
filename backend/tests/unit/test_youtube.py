@@ -72,6 +72,27 @@ def test_fetch_playlist_metadata_maps_fields(monkeypatch):
     }
 
 
+def test_fetch_playlist_metadata_strips_signed_thumbnail_query(monkeypatch):
+    fake = _FakeYoutubeDL(
+        info={
+            "title": "Japanese Podcast for Advanced",
+            "description": "",
+            "thumbnails": [
+                {
+                    "url": "https://i.ytimg.com/vi/2Op3QLzMgSY/hqdefault.jpg"
+                    "?sqp=-oaymwEwCKgBEF5IWvKriqkDIwgBFQAAiEIYAfABAfgBvgKAAvABigIMCAAQARggIGUoSzAP"
+                    "&rs=AOn4CLAFFohX09RAQ2c0vH0Kub4JW01RuQ"
+                }
+            ],
+        }
+    )
+    monkeypatch.setattr("app.services.youtube.yt_dlp.YoutubeDL", fake)
+
+    metadata = fetch_playlist_metadata("https://www.youtube.com/playlist?list=abc")
+
+    assert metadata["artwork_url"] == "https://i.ytimg.com/vi/2Op3QLzMgSY/hqdefault.jpg"
+
+
 def test_fetch_playlist_metadata_raises_on_download_error(monkeypatch):
     fake = _FakeYoutubeDL(error=yt_dlp.utils.DownloadError("boom"))
     monkeypatch.setattr("app.services.youtube.yt_dlp.YoutubeDL", fake)

@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 import yt_dlp
@@ -30,7 +31,16 @@ def _best_thumbnail(info: dict) -> str | None:
     thumbnails = info.get("thumbnails") or []
     if not thumbnails:
         return None
-    return thumbnails[-1].get("url")
+    url = thumbnails[-1].get("url")
+    if not url:
+        return None
+    # yt-dlp's thumbnail URLs carry a signed sqp=/rs= crop token that expires;
+    # the same asset is available permanently at the query-stripped URL
+    # (e.g. https://i.ytimg.com/vi/<id>/hqdefault.jpg), so strip it before
+    # persisting — otherwise the stored artwork_url goes dead after the token
+    # expires (#104).
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
 
 
 def fetch_playlist_metadata(playlist_url: str) -> dict:
