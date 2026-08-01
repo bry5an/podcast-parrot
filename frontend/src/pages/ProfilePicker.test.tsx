@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProfilePicker } from './ProfilePicker';
 import { ProfileProvider } from '../state/ProfileContext';
+import { ToastProvider } from '../state/ToastContext';
 import { api } from '../lib/api';
 import type { PackStatus, Profile } from '../lib/types';
 
@@ -32,10 +33,12 @@ function renderPicker() {
   return render(
     <MemoryRouter initialEntries={['/']}>
       <ProfileProvider>
-        <Routes>
-          <Route path="/" element={<ProfilePicker />} />
-          <Route path="/library" element={<div>Library page</div>} />
-        </Routes>
+        <ToastProvider>
+          <Routes>
+            <Route path="/" element={<ProfilePicker />} />
+            <Route path="/library" element={<div>Library page</div>} />
+          </Routes>
+        </ToastProvider>
       </ProfileProvider>
     </MemoryRouter>,
   );
@@ -75,6 +78,35 @@ describe('ProfilePicker', () => {
 
     expect(screen.getByText('Create a learner')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('e.g. Kenji')).toBeInTheDocument();
+  });
+
+  it('deletes a profile after confirming, without opening it', async () => {
+    const otherProfile: Profile = { ...existingProfile, id: 2, name: 'Aoi' };
+    vi.mocked(api.listProfiles).mockResolvedValue([existingProfile, otherProfile]);
+    vi.mocked(api.deleteProfile).mockResolvedValue(undefined);
+    renderPicker();
+
+    await screen.findByText('Kenji');
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Kenji' }));
+
+    expect(screen.getByText('Delete profile?')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(api.deleteProfile).toHaveBeenCalledWith(existingProfile.id);
+    expect(screen.queryByText('Library page')).not.toBeInTheDocument();
+  });
+
+  it('leaves the profile untouched when the delete confirmation is canceled', async () => {
+    vi.mocked(api.deleteProfile).mockClear();
+    vi.mocked(api.listProfiles).mockResolvedValue([existingProfile]);
+    renderPicker();
+
+    await screen.findByText('Kenji');
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Kenji' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(api.deleteProfile).not.toHaveBeenCalled();
+    expect(screen.getByText('Kenji')).toBeInTheDocument();
   });
 
   it('redirects straight to /library when the stored profile id matches an existing profile', async () => {

@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { JapanesePackPrompt } from '../components/JapanesePackPrompt';
 import { api } from '../lib/api';
 import { LANGUAGE_META, PALETTE } from '../lib/palette';
 import { useProfiles } from '../state/ProfileContext';
+import { useToast } from '../state/ToastContext';
 import { ASR_SETUP_SEEN_KEY } from './AsrSetup';
-import type { LearningLanguage } from '../lib/types';
+import type { LearningLanguage, Profile } from '../lib/types';
 
 const initial = (name: string) => (name.trim()[0] || '?').toUpperCase();
 
 export function ProfilePicker() {
   const { profiles, currentProfile, loading, selectProfile, refreshProfiles } = useProfiles();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [paletteIndex, setPaletteIndex] = useState(2);
@@ -20,6 +23,7 @@ export function ProfilePicker() {
   const [saving, setSaving] = useState(false);
   const [streaks, setStreaks] = useState<Record<number, number>>({});
   const [packPromptProfileId, setPackPromptProfileId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
 
   useEffect(() => {
     if (!profiles.length) return;
@@ -87,6 +91,17 @@ export function ProfilePicker() {
     if (profileId != null) pick(profileId);
   };
 
+  const deleteProfile = async (profile: Profile) => {
+    setDeleteTarget(null);
+    try {
+      await api.deleteProfile(profile.id);
+      showToast(`Deleted "${profile.name}"`);
+      refreshProfiles();
+    } catch {
+      showToast('Failed to delete profile', 'error');
+    }
+  };
+
   return (
     <div style={styles.page}>
       <div style={styles.brand}>
@@ -109,7 +124,19 @@ export function ProfilePicker() {
               const swatch = PALETTE[p.palette_index % PALETTE.length];
               const meta = LANGUAGE_META[p.learning_language];
               return (
-                <div key={p.id} onClick={() => pick(p.id)} style={styles.tile}>
+                <div key={p.id} onClick={() => pick(p.id)} style={{ ...styles.tile, position: 'relative' }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget(p);
+                    }}
+                    aria-label={`Delete ${p.name}`}
+                    style={styles.deleteBtn}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M5 5l10 10M15 5L5 15" />
+                    </svg>
+                  </button>
                   <div style={{ ...styles.avatar, background: swatch.art, boxShadow: `0 8px 24px ${swatch.shadow}` }}>
                     {initial(p.name)}
                     <div style={styles.flagBadge}>{meta.flag}</div>
@@ -276,6 +303,16 @@ export function ProfilePicker() {
       )}
 
       {packPromptProfileId != null && <JapanesePackPrompt onDone={finishPackPrompt} />}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete profile?"
+          message={`Delete "${deleteTarget.name}"? This removes their subscriptions, saved sentences, and playback history. This can't be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => deleteProfile(deleteTarget)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -295,6 +332,22 @@ const styles: Record<string, React.CSSProperties> = {
   h1: { font: '600 30px/1.2 IBM Plex Sans', margin: 0 },
   tileRow: { display: 'flex', gap: 26, alignItems: 'flex-start' },
   tile: { width: 184, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 15, cursor: 'pointer', padding: 10, borderRadius: 16 },
+  deleteBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 26,
+    height: 26,
+    borderRadius: '50%',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgb(var(--bg-surface-rgb) / .85)',
+    color: 'rgb(var(--fg-rgb) / .5)',
+    boxShadow: '0 2px 8px rgb(var(--fg-rgb) / .12)',
+  },
   avatar: { width: 118, height: 118, borderRadius: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', font: '600 42px/1 IBM Plex Sans', color: '#fff', position: 'relative' },
   flagBadge: { position: 'absolute', bottom: -6, right: -6, width: 38, height: 38, borderRadius: '50%', background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, boxShadow: '0 3px 10px rgb(var(--fg-rgb) / .15)' },
   mono: { font: '500 11px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .5)', marginTop: 6 },

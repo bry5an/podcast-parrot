@@ -5,6 +5,7 @@ from sqlmodel import Session, SQLModel, select
 
 from app.db import get_session
 from app.models import LearningLanguage, Profile
+from app.services.profiles import delete_profile as delete_profile_service
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
@@ -67,5 +68,4 @@ def delete_profile(profile_id: int, session: Session = Depends(get_session)):
     profile = session.get(Profile, profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
-    session.delete(profile)
-    session.commit()
+    delete_profile_service(session, profile)
