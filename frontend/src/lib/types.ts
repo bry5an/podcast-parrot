@@ -1,10 +1,10 @@
-export type Direction = 'en_ja' | 'ja_en';
+export type LearningLanguage = 'ja' | 'en' | 'es' | 'fr';
 
 export interface Profile {
   id: number;
   name: string;
   palette_index: number;
-  direction: Direction;
+  learning_language: LearningLanguage;
   show_furigana: boolean;
   created_at: string;
   last_used_at: string | null;
@@ -13,7 +13,7 @@ export interface Profile {
 export interface ProfileCreate {
   name: string;
   palette_index: number;
-  direction: Direction;
+  learning_language: LearningLanguage;
   show_furigana: boolean;
 }
 

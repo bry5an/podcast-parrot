@@ -9,7 +9,7 @@ from sqlmodel import SQLModel
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = 6
+CURRENT_VERSION = 7
 
 Migration = Callable[[sqlite3.Connection], None]
 
@@ -101,6 +101,40 @@ def _add_profile_last_used_at(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE profile ADD COLUMN last_used_at DATETIME")
 
 
+def _profile_direction_to_learning_language(conn: sqlite3.Connection) -> None:
+    # `direction` modeled a fixed native/target language pair (en_ja/ja_en).
+    # The app is now native-language-agnostic: profiles just name the
+    # language being learned. SQLite can't drop/retype a column via plain
+    # ALTER TABLE, so this rebuilds the table like v3's _make_podcast_kind_aware
+    # rather than leaving the old column behind as dead data.
+    conn.execute(
+        """
+        CREATE TABLE profile_new (
+            id INTEGER NOT NULL,
+            name VARCHAR NOT NULL,
+            palette_index INTEGER NOT NULL,
+            learning_language VARCHAR(5) NOT NULL,
+            show_furigana BOOLEAN NOT NULL,
+            created_at DATETIME NOT NULL,
+            last_used_at DATETIME,
+            PRIMARY KEY (id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO profile_new
+            (id, name, palette_index, learning_language, show_furigana, created_at, last_used_at)
+        SELECT id, name, palette_index,
+               CASE direction WHEN 'en_ja' THEN 'ja' WHEN 'ja_en' THEN 'en' ELSE 'ja' END,
+               show_furigana, created_at, last_used_at
+        FROM profile
+        """
+    )
+    conn.execute("DROP TABLE profile")
+    conn.execute("ALTER TABLE profile_new RENAME TO profile")
+
+
 # Keyed by the version each step migrates *to*. Version 1 is exactly the schema
 # `SQLModel.metadata.create_all()` produces, so it has no step here — both a
 # brand-new database and a pre-migration one are simply stamped at that version.
@@ -110,6 +144,7 @@ MIGRATIONS: dict[int, Migration] = {
     4: _add_app_settings_table,
     5: _add_podcast_local_directory_path,
     6: _add_profile_last_used_at,
+    7: _profile_direction_to_learning_language,
 }
 
 

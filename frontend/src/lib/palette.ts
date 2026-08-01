@@ -1,3 +1,5 @@
+import type { LearningLanguage } from './types';
+
 export interface Swatch {
   art: string;
   shadow: string;
@@ -11,10 +13,12 @@ export const PALETTE: Swatch[] = [
   { art: 'linear-gradient(135deg,oklch(0.58 0.09 285),oklch(0.5 0.1 300))', shadow: 'oklch(0.5 0.1 300 / 0.4)' },
 ];
 
-export const DIRECTION_META: Record<
-  'en_ja' | 'ja_en',
+export const LANGUAGE_META: Record<
+  LearningLanguage,
   { flag: string; title: string; sub: string }
 > = {
-  en_ja: { flag: '🇯🇵', title: 'Japanese', sub: '日本語 · native English' },
-  ja_en: { flag: '🇺🇸', title: 'English', sub: '英語 · native Japanese' },
+  ja: { flag: '🇯🇵', title: 'Japanese', sub: '日本語' },
+  en: { flag: '🇺🇸', title: 'English', sub: 'English' },
+  es: { flag: '🇪🇸', title: 'Spanish', sub: 'Español' },
+  fr: { flag: '🇫🇷', title: 'French', sub: 'Français' },
 };

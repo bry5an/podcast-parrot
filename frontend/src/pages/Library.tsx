@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { AddPodcastPanel } from '../components/AddPodcastPanel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { api } from '../lib/api';
-import { DIRECTION_META, PALETTE } from '../lib/palette';
+import { LANGUAGE_META, PALETTE } from '../lib/palette';
 import { useProfiles } from '../state/ProfileContext';
 import { useToast } from '../state/ToastContext';
 import type { Podcast } from '../lib/types';
@@ -33,7 +33,7 @@ export function Library() {
   if (!currentProfile) return loading ? null : <Navigate to="/" replace />;
 
   const swatch = PALETTE[currentProfile.palette_index % PALETTE.length];
-  const meta = DIRECTION_META[currentProfile.direction];
+  const meta = LANGUAGE_META[currentProfile.learning_language];
 
   const unfollow = async (podcastId: number) => {
     await api.unsubscribe(currentProfile.id, podcastId);
@@ -220,7 +220,7 @@ export function Library() {
           {addOpen && (
             <AddPodcastPanel
               profileId={currentProfile.id}
-              language={currentProfile.direction === 'en_ja' ? 'ja' : 'en'}
+              language={currentProfile.learning_language}
               onClose={() => setAddOpen(false)}
               onSubscriptionChange={refreshSubscriptions}
             />

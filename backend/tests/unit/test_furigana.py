@@ -32,6 +32,14 @@ def test_word_tokenization_preserves_punctuation_and_reconstructs_exactly():
     assert words == ["Well", "isn't", "that", "great"]
 
 
+def test_accented_spanish_and_french_words_tokenize_as_single_segments():
+    text = "¿Cómo estás? C'est très bien."
+    segments = build_segments(text, "es")
+    assert "".join(s["base"] for s in segments) == text
+    words = [s["base"] for s in segments if re.match(r"^[^\W\d_]+(?:['’][^\W\d_]+)*$", s["base"])]
+    assert words == ["Cómo", "estás", "C'est", "très", "bien"]
+
+
 def test_japanese_text_with_non_japanese_language_is_not_segmented_by_mecab():
     # The `language` argument drives the tokenization strategy, not the text
     # content itself — Japanese text tagged as English gets the word-boundary
