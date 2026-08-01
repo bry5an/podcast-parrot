@@ -31,6 +31,7 @@ const podcast: Podcast = {
   artwork_url: null,
   language: 'ja',
   level_tag: null,
+  locale_tag: null,
   source: 'curated',
   subscribed: true,
 };
@@ -82,6 +83,23 @@ describe('Library profile menu', () => {
     await userEvent.click(screen.getByRole('button', { name: /Switch profile/ }));
     expect(await screen.findByTestId('picker-stub')).toBeInTheDocument();
     expect(localStorage.getItem('kotoba.profileId')).toBeNull();
+  });
+});
+
+describe('Library subscription list', () => {
+  beforeEach(() => {
+    localStorage.setItem('kotoba.profileId', '1');
+    vi.mocked(api.listProfiles).mockResolvedValue([profile]);
+  });
+
+  it('shows the locale tag alongside the level tag for a curated show', async () => {
+    vi.mocked(api.listSubscriptions).mockResolvedValue([
+      { ...podcast, level_tag: 'B1-B2', locale_tag: 'Latin America' },
+    ]);
+    renderLibrary();
+    await screen.findByText('Nihongo News');
+    expect(screen.getByText('B1-B2')).toBeInTheDocument();
+    expect(screen.getByText('Latin America')).toBeInTheDocument();
   });
 });
 

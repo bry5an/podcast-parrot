@@ -44,6 +44,38 @@ def _create_v1_profile_table(db_path) -> None:
         conn.close()
 
 
+def _create_v7_podcast_table(db_path) -> None:
+    # Same rationale as _create_v1_profile_table: podcast hasn't been rebuilt
+    # since v3 (unlike profile, rebuilt at v7), so create_all() would bake
+    # locale_tag in early and the v8 ADD COLUMN step would collide with it.
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE podcast (
+                id INTEGER NOT NULL,
+                rss_url VARCHAR,
+                youtube_playlist_url VARCHAR,
+                local_directory_path VARCHAR,
+                kind VARCHAR(15) NOT NULL,
+                title VARCHAR NOT NULL,
+                description VARCHAR NOT NULL,
+                artwork_url VARCHAR,
+                language VARCHAR NOT NULL,
+                level_tag VARCHAR,
+                source VARCHAR(10) NOT NULL,
+                last_polled_at DATETIME,
+                PRIMARY KEY (id)
+            )
+            """
+        )
+        conn.execute("CREATE UNIQUE INDEX ix_podcast_rss_url ON podcast (rss_url)")
+        conn.execute("CREATE UNIQUE INDEX ix_podcast_youtube_playlist_url ON podcast (youtube_playlist_url)")
+        conn.execute("CREATE UNIQUE INDEX ix_podcast_local_directory_path ON podcast (local_directory_path)")
+    finally:
+        conn.close()
+
+
 def test_fresh_database_is_created_and_stamped_at_current_version(tmp_path):
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
@@ -331,8 +363,9 @@ def test_v5_profile_table_gains_last_used_at_column(tmp_path):
     # before last_used_at existed, with one real row in it, stamped at version 5.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    other_v5_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "profile"]
+    other_v5_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("profile", "podcast")]
     SQLModel.metadata.create_all(engine, tables=other_v5_tables)
+    _create_v7_podcast_table(db_path)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute(
         """
@@ -372,8 +405,9 @@ def test_v6_profile_direction_becomes_learning_language(tmp_path):
     # (en_ja -> ja, ja_en -> en) and drop the old column entirely.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    other_v6_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "profile"]
+    other_v6_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("profile", "podcast")]
     SQLModel.metadata.create_all(engine, tables=other_v6_tables)
+    _create_v7_podcast_table(db_path)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute(
         """
@@ -406,6 +440,55 @@ def test_v6_profile_direction_becomes_learning_language(tmp_path):
     assert "direction" not in columns
     rows = conn.execute("SELECT id, learning_language FROM profile ORDER BY id").fetchall()
     assert rows == [(1, "ja"), (2, "en")]
+    conn.close()
+
+
+def test_v7_podcast_table_gains_locale_tag_column(tmp_path):
+    # Simulates a real pre-locale-tag install: the podcast schema that shipped
+    # after #89 (learning_language), stamped at version 7 — no locale_tag
+    # column yet. A plain ADD COLUMN should backfill NULL for existing rows.
+    db_path = tmp_path / "kotoba.db"
+    engine = _engine_for(db_path)
+    other_v7_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "podcast"]
+    SQLModel.metadata.create_all(engine, tables=other_v7_tables)
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    conn.execute(
+        """
+        CREATE TABLE podcast (
+            id INTEGER NOT NULL,
+            rss_url VARCHAR,
+            youtube_playlist_url VARCHAR,
+            local_directory_path VARCHAR,
+            kind VARCHAR(15) NOT NULL,
+            title VARCHAR NOT NULL,
+            description VARCHAR NOT NULL,
+            artwork_url VARCHAR,
+            language VARCHAR NOT NULL,
+            level_tag VARCHAR,
+            source VARCHAR(10) NOT NULL,
+            last_polled_at DATETIME,
+            PRIMARY KEY (id)
+        )
+        """
+    )
+    conn.execute("CREATE UNIQUE INDEX ix_podcast_rss_url ON podcast (rss_url)")
+    conn.execute("CREATE UNIQUE INDEX ix_podcast_youtube_playlist_url ON podcast (youtube_playlist_url)")
+    conn.execute("CREATE UNIQUE INDEX ix_podcast_local_directory_path ON podcast (local_directory_path)")
+    conn.execute(
+        "INSERT INTO podcast (id, rss_url, kind, title, description, language, level_tag, source) "
+        "VALUES (1, 'https://example.com/feed.xml', 'rss', 'Español Show', '', 'es', 'B1-B2', 'curated')"
+    )
+    conn.execute("PRAGMA user_version = 7")
+    conn.close()
+
+    migrations.run(db_path, engine)
+
+    assert _user_version(db_path) == migrations.CURRENT_VERSION
+    conn = sqlite3.connect(db_path)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(podcast)")}
+    assert "locale_tag" in columns
+    row = conn.execute("SELECT id, locale_tag FROM podcast").fetchone()
+    assert row == (1, None)
     conn.close()
 
 

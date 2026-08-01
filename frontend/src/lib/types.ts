@@ -31,6 +31,7 @@ export interface Podcast {
   artwork_url: string | null;
   language: string;
   level_tag: string | null;
+  locale_tag: string | null;
   source: PodcastSource;
   subscribed: boolean;
 }

@@ -22,6 +22,7 @@ class PodcastRead(SQLModel):
     artwork_url: str | None
     language: str
     level_tag: str | None
+    locale_tag: str | None
     source: PodcastSource
     subscribed: bool = False
 
@@ -50,6 +51,7 @@ def _to_read(podcast: Podcast, subscribed_ids: set[int]) -> PodcastRead:
         artwork_url=podcast.artwork_url,
         language=podcast.language,
         level_tag=podcast.level_tag,
+        locale_tag=podcast.locale_tag,
         source=podcast.source,
         subscribed=podcast.id in subscribed_ids,
     )
@@ -79,7 +81,10 @@ def search_directory(
         podcasts = [
             p
             for p in podcasts
-            if q in p.title.lower() or q in p.description.lower() or q in (p.level_tag or "").lower()
+            if q in p.title.lower()
+            or q in p.description.lower()
+            or q in (p.level_tag or "").lower()
+            or q in (p.locale_tag or "").lower()
         ]
 
     subscribed_ids = _subscribed_podcast_ids(session, profile_id)

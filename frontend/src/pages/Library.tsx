@@ -186,6 +186,7 @@ export function Library() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                         <span style={{ font: '600 15px/1.3 IBM Plex Sans', cursor: 'pointer' }} onClick={goToEpisodes}>{p.title}</span>
                         {p.level_tag && <span style={levelBadgeStyle}>{p.level_tag}</span>}
+                        {p.locale_tag && <span style={localeBadgeStyle}>{p.locale_tag}</span>}
                       </div>
                       <div style={{ font: '400 12px/1.5 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)', marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 440 }}>
                         {p.description}
@@ -245,6 +246,7 @@ const addBtnStyle: React.CSSProperties = { height: 40, padding: '0 17px', border
 const cardStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16, padding: 14, borderRadius: 14, background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .08)' };
 const cardArtStyle: React.CSSProperties = { width: 60, height: 60, flex: 'none', borderRadius: 11, objectFit: 'cover', cursor: 'pointer' };
 const levelBadgeStyle: React.CSSProperties = { font: '500 10px/1 IBM Plex Mono', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.12)', padding: '3px 6px', borderRadius: 5 };
+const localeBadgeStyle: React.CSSProperties = { font: '500 10px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .55)', background: 'rgb(var(--fg-rgb) / .08)', padding: '3px 6px', borderRadius: 5 };
 const unfollowBtnStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: '50%', border: '1px solid rgb(var(--fg-rgb) / .12)', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgb(var(--fg-rgb) / .5)' };
 const profileMenuOverlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 10 };
 const profileMenuStyle: React.CSSProperties = { position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 8, background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .1)', borderRadius: 12, boxShadow: '0 8px 24px rgb(var(--fg-rgb) / .16)', padding: 6, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 11 };
