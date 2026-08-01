@@ -42,8 +42,9 @@ class Podcast(SQLModel, table=True):
     title: str
     description: str = ""
     artwork_url: str | None = None
-    language: str  # "ja" | "en" — which learning direction this show serves
+    language: str  # "ja" | "en" | "es" | "fr" — which language this show teaches
     level_tag: str | None = None  # editorial difficulty band, curated shows only
+    locale_tag: str | None = None  # editorial dialect/region label, curated shows only
     source: PodcastSource = Field(default=PodcastSource.user_added)
     last_polled_at: datetime | None = None
 

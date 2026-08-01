@@ -9,7 +9,7 @@ from sqlmodel import SQLModel
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = 7
+CURRENT_VERSION = 8
 
 Migration = Callable[[sqlite3.Connection], None]
 
@@ -135,6 +135,12 @@ def _profile_direction_to_learning_language(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE profile_new RENAME TO profile")
 
 
+def _add_podcast_locale_tag(conn: sqlite3.Connection) -> None:
+    # Brand-new nullable column, same as v5's local_directory_path — a plain
+    # ADD COLUMN works, no table rebuild needed.
+    conn.execute("ALTER TABLE podcast ADD COLUMN locale_tag VARCHAR")
+
+
 # Keyed by the version each step migrates *to*. Version 1 is exactly the schema
 # `SQLModel.metadata.create_all()` produces, so it has no step here — both a
 # brand-new database and a pre-migration one are simply stamped at that version.
@@ -145,6 +151,7 @@ MIGRATIONS: dict[int, Migration] = {
     5: _add_podcast_local_directory_path,
     6: _add_profile_last_used_at,
     7: _profile_direction_to_learning_language,
+    8: _add_podcast_locale_tag,
 }
 
 

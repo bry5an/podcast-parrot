@@ -221,6 +221,7 @@ export function AddPodcastPanel({ profileId, language, onClose, onSubscriptionCh
                       {r.title}
                     </span>
                     {r.level_tag && <span style={levelBadgeStyle}>{r.level_tag}</span>}
+                    {r.locale_tag && <span style={localeBadgeStyle}>{r.locale_tag}</span>}
                   </div>
                   <div style={{ font: '400 11.5px/1.45 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .5)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 230 }}>
                     {r.description}
@@ -267,3 +268,4 @@ const chooseFolderBtnStyle: React.CSSProperties = { width: '100%', height: 40, b
 const resultRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 13, padding: 11, borderRadius: 12, background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .08)' };
 const artStyle: React.CSSProperties = { width: 48, height: 48, flex: 'none', borderRadius: 10, objectFit: 'cover' };
 const levelBadgeStyle: React.CSSProperties = { font: '500 9.5px/1 IBM Plex Mono', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.12)', padding: '2px 5px', borderRadius: 4, flex: 'none' };
+const localeBadgeStyle: React.CSSProperties = { font: '500 9.5px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .55)', background: 'rgb(var(--fg-rgb) / .08)', padding: '2px 5px', borderRadius: 4, flex: 'none' };

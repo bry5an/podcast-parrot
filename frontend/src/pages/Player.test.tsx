@@ -32,6 +32,7 @@ const podcast: Podcast = {
   artwork_url: null,
   language: 'ja',
   level_tag: null,
+  locale_tag: null,
   source: 'curated',
   subscribed: true,
 };

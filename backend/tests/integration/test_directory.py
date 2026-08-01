@@ -57,6 +57,30 @@ def test_search_directory_filters_by_language_and_query(client, session):
     assert [p["title"] for p in response.json()] == ["English Hour"]
 
 
+def test_search_directory_includes_locale_tag_and_is_searchable(client, session):
+    _make_podcast(
+        session,
+        rss_url="https://example.com/es-spain.xml",
+        title="Español Show",
+        language="es",
+        locale_tag="Spain",
+    )
+    _make_podcast(
+        session,
+        rss_url="https://example.com/es-latam.xml",
+        title="Español Show Dos",
+        language="es",
+        locale_tag="Latin America",
+    )
+
+    response = client.get("/api/directory", params={"language": "es"})
+    by_title = {p["title"]: p["locale_tag"] for p in response.json()}
+    assert by_title == {"Español Show": "Spain", "Español Show Dos": "Latin America"}
+
+    response = client.get("/api/directory", params={"query": "latin america"})
+    assert [p["title"] for p in response.json()] == ["Español Show Dos"]
+
+
 def test_search_directory_marks_subscribed_podcasts(client, session):
     podcast = _make_podcast(session)
     profile_resp = client.post("/api/profiles", json={"name": "Kenji"})

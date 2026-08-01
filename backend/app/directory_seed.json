@@ -86,5 +86,77 @@
     "artwork_url": "https://megaphone.imgix.net/podcasts/88b85f10-a0c0-11ec-9e52-bfcf9441f742/image/All_Ears_English_New_Cover_with_Michelle_Under_500_KB.jpg",
     "language": "en",
     "level_tag": "B2-C1"
+  },
+  {
+    "rss_url": "https://rss.libsyn.com/shows/19057/destinations/14862.xml",
+    "title": "Notes in Spanish: Inspired Beginners",
+    "description": "Ben (English) and Marina (a Madrid native) share natural, conversational Spanish for motivated beginners, recorded in Spain.",
+    "artwork_url": "https://static.libsyn.com/p/assets/5/8/8/3/58838a4bbb16f2fed959afa2a1bf1c87/NIS-BEG_1400x1400.jpg",
+    "language": "es",
+    "level_tag": "A1-A2",
+    "locale_tag": "Spain"
+  },
+  {
+    "rss_url": "https://www.hoyhablamos.com/category/podcast/feed/",
+    "title": "Hoy Hablamos: Podcast diario para aprender español",
+    "description": "A daily Spanish podcast from Spain covering grammar, expressions, news, and culture, Monday through Friday.",
+    "artwork_url": "https://www.hoyhablamos.com/wp-content/uploads/2017/02/hoy-hablamos-itunes-01.jpg",
+    "language": "es",
+    "level_tag": "B1-B2",
+    "locale_tag": "Spain"
+  },
+  {
+    "rss_url": "https://app.kajabi.com/podcasts/2147495670/feed",
+    "title": "Español Automático Podcast",
+    "description": "Karo, a Colombian Spanish teacher, helps intermediate learners build fluency through natural storytelling and real-life topics.",
+    "artwork_url": "https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_nologo/43348159/376c002262630365.jpg",
+    "language": "es",
+    "level_tag": "B1-B2",
+    "locale_tag": "Latin America"
+  },
+  {
+    "rss_url": "https://charlashispanas.com/feed/podcast/",
+    "title": "Charlas Hispanas: Aprende Español",
+    "description": "A team of Spanish teachers from Colombia, Mexico, and Peru discuss Latin American culture and everyday topics in clear, natural Spanish.",
+    "artwork_url": "https://charlashispanas.com/wp-content/uploads/powerpress/imagen_rrss_charlas_hispanas-01-835.jpg",
+    "language": "es",
+    "level_tag": "A2-B1",
+    "locale_tag": "Latin America"
+  },
+  {
+    "rss_url": "https://www.francaisavecpierre.com/feed/podcast/",
+    "title": "Français avec Pierre",
+    "description": "French teacher Pierre records slow, clear weekly podcasts with accompanying transcripts, for beginner-to-intermediate learners in France.",
+    "artwork_url": "https://www.francaisavecpierre.com/wp-content/uploads/2025/02/Podcast-Fr-avec-Pierre-1400v.jpg",
+    "language": "fr",
+    "level_tag": "A1-A2",
+    "locale_tag": "France"
+  },
+  {
+    "rss_url": "https://francaisauthentique.libsyn.com/rss",
+    "title": "Français Authentique",
+    "description": "Johan helps learners progress from understanding to speaking French naturally, as if living in France.",
+    "artwork_url": "https://static.libsyn.com/p/assets/c/2/0/2/c202376cf341f215/podcast.jpg",
+    "language": "fr",
+    "level_tag": "B1-B2",
+    "locale_tag": "France"
+  },
+  {
+    "rss_url": "https://feeds.captivate.fm/canadian-french-learning-accelerator-en-us-to-fr-ca/",
+    "title": "Canadian French Learning Accelerator",
+    "description": "Immersive, comprehensible-input style episodes of Québécois French, aimed at English speakers building listening fluency.",
+    "artwork_url": "https://artwork.captivate.fm/1dda6ef7-c44d-4a0f-8407-c7cd8a340644/bfFoj4kJzh5wWTtHh9qjSzaI.png",
+    "language": "fr",
+    "level_tag": "A2-B1",
+    "locale_tag": "Canada"
+  },
+  {
+    "rss_url": "https://api.substack.com/feed/podcast/1605429.rss",
+    "title": "Quebec French Podcast",
+    "description": "Modern, authentic Québécois French lessons from Montreal covering slang, expressions, and culture for intermediate learners.",
+    "artwork_url": "https://substackcdn.com/feed/podcast/1605429/2840110c9cd8949fe94d54f4ca208aa8.jpg",
+    "language": "fr",
+    "level_tag": "B1-B2",
+    "locale_tag": "Canada"
   }
 ]
