@@ -1,3 +1,17 @@
+from sqlmodel import select
+
+from app.models import (
+    Episode,
+    PlaybackState,
+    Podcast,
+    SavedSentence,
+    Sentence,
+    ShadowEvent,
+    Subscription,
+    Transcript,
+)
+
+
 def test_create_profile(client):
     response = client.post("/api/profiles", json={"name": "Kenji"})
     assert response.status_code == 200
@@ -73,3 +87,51 @@ def test_delete_profile(client):
 def test_delete_profile_missing_returns_404(client):
     response = client.delete("/api/profiles/999")
     assert response.status_code == 404
+
+
+def test_delete_profile_clears_dependent_rows(client, session):
+    profile_id = client.post("/api/profiles", json={"name": "Kenji"}).json()["id"]
+
+    podcast = Podcast(rss_url="https://example.com/a.xml", title="Nihongo News", language="ja")
+    session.add(podcast)
+    session.commit()
+    session.refresh(podcast)
+
+    episode = Episode(podcast_id=podcast.id, guid="1", title="Ep 1", audio_url="https://example.com/1.mp3")
+    session.add(episode)
+    session.commit()
+    session.refresh(episode)
+
+    transcript = Transcript(episode_id=episode.id)
+    session.add(transcript)
+    session.commit()
+    session.refresh(transcript)
+
+    sentence = Sentence(transcript_id=transcript.id, index=0, start_time=0, end_time=1, text="こんにちは")
+    session.add(sentence)
+    session.commit()
+    session.refresh(sentence)
+
+    session.add(Subscription(profile_id=profile_id, podcast_id=podcast.id))
+    session.add(PlaybackState(profile_id=profile_id, episode_id=episode.id, position_seconds=12))
+    session.add(
+        SavedSentence(
+            profile_id=profile_id,
+            episode_id=episode.id,
+            name="Clip",
+            start_sentence_id=sentence.id,
+            end_sentence_id=sentence.id,
+        )
+    )
+    session.add(ShadowEvent(profile_id=profile_id, episode_id=episode.id, sentence_id=sentence.id))
+    session.commit()
+
+    response = client.delete(f"/api/profiles/{profile_id}")
+    assert response.status_code == 204
+
+    assert session.exec(select(Subscription).where(Subscription.profile_id == profile_id)).first() is None
+    assert session.exec(select(PlaybackState).where(PlaybackState.profile_id == profile_id)).first() is None
+    assert session.exec(select(SavedSentence).where(SavedSentence.profile_id == profile_id)).first() is None
+    assert session.exec(select(ShadowEvent).where(ShadowEvent.profile_id == profile_id)).first() is None
+    # Podcast/episode/sentence rows aren't profile-scoped, so they survive.
+    assert session.get(Podcast, podcast.id) is not None
