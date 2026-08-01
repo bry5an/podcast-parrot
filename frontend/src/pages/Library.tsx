@@ -56,12 +56,12 @@ export function Library() {
   };
 
   return (
-    <div style={{ position: 'relative', display: 'flex', height: '100vh', background: '#fbfaf7', color: '#211f1b' }}>
+    <div style={{ position: 'relative', display: 'flex', height: '100vh', background: 'var(--bg-page)', color: 'var(--fg)' }}>
           {/* nav rail */}
-          <div style={{ width: 212, flex: 'none', borderRight: '1px solid rgba(32,30,26,.08)', display: 'flex', flexDirection: 'column', padding: '20px 14px' }}>
+          <div style={{ width: 212, flex: 'none', borderRight: '1px solid rgb(var(--fg-rgb) / .08)', display: 'flex', flexDirection: 'column', padding: '20px 14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 8px 18px' }}>
-              <div style={{ width: 26, height: 26, borderRadius: 7, background: '#211f1b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#fff" strokeWidth={1.7}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: 'var(--fg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="var(--bg-page)" strokeWidth={1.7}>
                   <path d="M6 10a4 4 0 0 1 8 0M8.5 10v4M11.5 10v4M10 3v3" />
                 </svg>
               </div>
@@ -97,11 +97,11 @@ export function Library() {
                 Saved Sentences
               </div>
             </div>
-            <div style={{ height: 1, background: 'rgba(32,30,26,.08)', margin: '16px 6px' }} />
-            <div style={{ font: '500 10px/1 IBM Plex Mono', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(32,30,26,.4)', padding: '0 10px 10px' }}>
+            <div style={{ height: 1, background: 'rgb(var(--fg-rgb) / .08)', margin: '16px 6px' }} />
+            <div style={{ font: '500 10px/1 IBM Plex Mono', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgb(var(--fg-rgb) / .4)', padding: '0 10px 10px' }}>
               Learning
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '500 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.6)', padding: '0 10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '500 12px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .6)', padding: '0 10px' }}>
               <span style={{ fontSize: 13 }}>{meta.flag}</span> {meta.title}
             </div>
             <div style={{ position: 'relative', marginTop: 'auto' }}>
@@ -140,14 +140,14 @@ export function Library() {
               )}
               <div
                 onClick={() => setProfileMenuOpen((v) => !v)}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, border: '1px solid rgba(32,30,26,.08)', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, border: '1px solid rgb(var(--fg-rgb) / .08)', cursor: 'pointer' }}
               >
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: swatch.art, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '600 12px/1 IBM Plex Sans' }}>
                   {currentProfile.name[0]?.toUpperCase()}
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ font: '600 12px/1.2 IBM Plex Sans' }}>{currentProfile.name}</div>
-                  <div style={{ font: '400 10px/1.3 IBM Plex Mono', color: 'rgba(32,30,26,.45)', marginTop: 2 }}></div>
+                  <div style={{ font: '400 10px/1.3 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .45)', marginTop: 2 }}></div>
                 </div>
               </div>
             </div>
@@ -157,7 +157,7 @@ export function Library() {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '26px 30px 18px', flex: 'none' }}>
               <div>
-                <div style={{ font: '500 11px/1 IBM Plex Mono', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(32,30,26,.45)', marginBottom: 9 }}>
+                <div style={{ font: '500 11px/1 IBM Plex Mono', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgb(var(--fg-rgb) / .45)', marginBottom: 9 }}>
                   My podcasts
                 </div>
                 <h1 style={{ font: '600 25px/1.2 IBM Plex Sans', margin: 0 }}>
@@ -180,14 +180,14 @@ export function Library() {
                     {p.artwork_url ? (
                       <img src={p.artwork_url} alt="" style={cardArtStyle} onClick={goToEpisodes} />
                     ) : (
-                      <div style={{ ...cardArtStyle, background: 'rgba(32,30,26,.08)' }} onClick={goToEpisodes} />
+                      <div style={{ ...cardArtStyle, background: 'rgb(var(--fg-rgb) / .08)' }} onClick={goToEpisodes} />
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                         <span style={{ font: '600 15px/1.3 IBM Plex Sans', cursor: 'pointer' }} onClick={goToEpisodes}>{p.title}</span>
                         {p.level_tag && <span style={levelBadgeStyle}>{p.level_tag}</span>}
                       </div>
-                      <div style={{ font: '400 12px/1.5 IBM Plex Sans', color: 'rgba(32,30,26,.55)', marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 440 }}>
+                      <div style={{ font: '400 12px/1.5 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)', marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 440 }}>
                         {p.description}
                       </div>
                     </div>
@@ -207,9 +207,9 @@ export function Library() {
                 );
               })}
               {loaded && subscriptions.length === 0 && (
-                <div style={{ margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgba(32,30,26,.16)', borderRadius: 16 }}>
+                <div style={{ margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgb(var(--fg-rgb) / .16)', borderRadius: 16 }}>
                   <div style={{ font: '600 15px/1.4 IBM Plex Sans', marginBottom: 8 }}>No podcasts followed yet</div>
-                  <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgba(32,30,26,.55)' }}>
+                  <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)' }}>
                     Add a podcast to start shadowing. Search the directory or paste an RSS feed.
                   </div>
                 </div>
@@ -239,13 +239,13 @@ export function Library() {
   );
 }
 
-const navItemActiveStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 9, background: 'rgba(32,30,26,.06)', font: '600 13px/1 IBM Plex Sans', color: '#211f1b' };
-const navItemStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 9, font: '500 13px/1 IBM Plex Sans', color: 'rgba(32,30,26,.55)', cursor: 'pointer' };
-const addBtnStyle: React.CSSProperties = { height: 40, padding: '0 17px', borderRadius: 20, border: 'none', background: '#211f1b', color: '#fff', display: 'flex', alignItems: 'center', gap: 8, font: '600 13px/1 IBM Plex Sans', cursor: 'pointer', boxShadow: '0 3px 12px rgba(32,30,26,.2)' };
-const cardStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16, padding: 14, borderRadius: 14, background: '#fff', border: '1px solid rgba(32,30,26,.08)' };
+const navItemActiveStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 9, background: 'var(--bg-hover)', font: '600 13px/1 IBM Plex Sans', color: 'var(--fg)' };
+const navItemStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 9, font: '500 13px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)', cursor: 'pointer' };
+const addBtnStyle: React.CSSProperties = { height: 40, padding: '0 17px', borderRadius: 20, border: 'none', background: 'var(--fg)', color: 'var(--bg-page)', display: 'flex', alignItems: 'center', gap: 8, font: '600 13px/1 IBM Plex Sans', cursor: 'pointer', boxShadow: '0 3px 12px rgb(var(--fg-rgb) / .2)' };
+const cardStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16, padding: 14, borderRadius: 14, background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .08)' };
 const cardArtStyle: React.CSSProperties = { width: 60, height: 60, flex: 'none', borderRadius: 11, objectFit: 'cover', cursor: 'pointer' };
 const levelBadgeStyle: React.CSSProperties = { font: '500 10px/1 IBM Plex Mono', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.12)', padding: '3px 6px', borderRadius: 5 };
-const unfollowBtnStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: '50%', border: '1px solid rgba(32,30,26,.12)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.5)' };
+const unfollowBtnStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: '50%', border: '1px solid rgb(var(--fg-rgb) / .12)', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgb(var(--fg-rgb) / .5)' };
 const profileMenuOverlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 10 };
-const profileMenuStyle: React.CSSProperties = { position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 8, background: '#fff', border: '1px solid rgba(32,30,26,.1)', borderRadius: 12, boxShadow: '0 8px 24px rgba(32,30,26,.16)', padding: 6, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 11 };
-const profileMenuItemStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 8, border: 'none', background: 'none', font: '500 12.5px/1 IBM Plex Sans', color: '#211f1b', cursor: 'pointer', textAlign: 'left' };
+const profileMenuStyle: React.CSSProperties = { position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 8, background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .1)', borderRadius: 12, boxShadow: '0 8px 24px rgb(var(--fg-rgb) / .16)', padding: 6, display: 'flex', flexDirection: 'column', gap: 2, zIndex: 11 };
+const profileMenuItemStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 8, border: 'none', background: 'none', font: '500 12.5px/1 IBM Plex Sans', color: 'var(--fg)', cursor: 'pointer', textAlign: 'left' };

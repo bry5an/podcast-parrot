@@ -176,7 +176,7 @@ export function Episodes() {
   if (!currentProfile) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fbfaf7', color: '#211f1b' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-page)', color: 'var(--fg)' }}>
           <div style={{ padding: '22px 30px 0', flex: 'none' }}>
             <button onClick={() => navigate('/library')} style={backBtnStyle}>
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}>
@@ -191,13 +191,13 @@ export function Episodes() {
               {podcast?.artwork_url ? (
                 <img src={podcast.artwork_url} alt="" style={headerArtStyle} />
               ) : (
-                <div style={{ ...headerArtStyle, background: 'rgba(32,30,26,.08)' }} />
+                <div style={{ ...headerArtStyle, background: 'rgb(var(--fg-rgb) / .08)' }} />
               )}
               <div style={{ minWidth: 0 }}>
                 <h1 style={{ font: '600 22px/1.25 IBM Plex Sans', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {podcast?.title ?? '…'}
                 </h1>
-                <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)', marginTop: 8 }}>
+                <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .5)', marginTop: 8 }}>
                   {loaded ? (episodes.length === 1 ? '1 episode' : `${episodes.length} episodes`) : '…'}
                   {cadence ? ` · ${cadence}` : ''}
                 </div>
@@ -252,7 +252,7 @@ export function Episodes() {
                     <div style={{ font: '600 14px/1.35 IBM Plex Sans', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {ep.title}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, font: '400 11.5px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, font: '400 11.5px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .5)' }}>
                       <span>{formatDate(ep.pub_date)}</span>
                       {ep.duration_seconds ? <span>· {formatDuration(ep.duration_seconds)}</span> : null}
                       {ep.transcript_source_url && <span style={transcriptBadgeStyle}>Transcript</span>}
@@ -317,9 +317,9 @@ export function Episodes() {
               );
             })}
             {loaded && episodes.length === 0 && (
-              <div style={{ margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgba(32,30,26,.16)', borderRadius: 16 }}>
+              <div style={{ margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgb(var(--fg-rgb) / .16)', borderRadius: 16 }}>
                 <div style={{ font: '600 15px/1.4 IBM Plex Sans', marginBottom: 8 }}>No episodes here</div>
-                <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgba(32,30,26,.55)' }}>
+                <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)' }}>
                   {filter === 'all' ? 'This show has no episodes yet.' : 'Try a different filter.'}
                 </div>
               </div>
@@ -341,7 +341,7 @@ function DownloadButton({
   if (episode.download_status === 'downloading') {
     return (
       <div style={downloadBtnStyle} title="Downloading…">
-        <svg className="spinner" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="rgba(32,30,26,.55)" strokeWidth={1.8}>
+        <svg className="spinner" width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="rgb(var(--fg-rgb) / .55)" strokeWidth={1.8}>
           <path d="M10 3a7 7 0 1 1-7 7" />
         </svg>
       </div>
@@ -389,17 +389,17 @@ function TranscribeButton({ episode, onTranscribe }: { episode: Episode; onTrans
   );
 }
 
-const backBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer', padding: '6px 4px', font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.55)' };
+const backBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer', padding: '6px 4px', font: '600 12px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)' };
 const headerArtStyle: React.CSSProperties = { width: 64, height: 64, flex: 'none', borderRadius: 13, objectFit: 'cover' };
-const downloadAllBtnStyle: React.CSSProperties = { height: 38, padding: '0 16px', borderRadius: 19, border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', gap: 8, font: '600 12.5px/1 IBM Plex Sans', color: '#211f1b', cursor: 'pointer', flex: 'none' };
-const filterTabStyle: React.CSSProperties = { height: 32, padding: '0 14px', borderRadius: 16, border: '1px solid rgba(32,30,26,.12)', background: '#fff', font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.55)', cursor: 'pointer' };
-const filterTabActiveStyle: React.CSSProperties = { background: '#211f1b', borderColor: '#211f1b', color: '#fff' };
-const sortBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, height: 32, padding: '0 13px', borderRadius: 16, border: '1px solid rgba(32,30,26,.12)', background: '#fff', font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.6)', cursor: 'pointer' };
-const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16, padding: '13px 14px', borderRadius: 13, background: '#fff', border: '1px solid rgba(32,30,26,.08)' };
+const downloadAllBtnStyle: React.CSSProperties = { height: 38, padding: '0 16px', borderRadius: 19, border: '1px solid rgb(var(--fg-rgb) / .14)', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', gap: 8, font: '600 12.5px/1 IBM Plex Sans', color: 'var(--fg)', cursor: 'pointer', flex: 'none' };
+const filterTabStyle: React.CSSProperties = { height: 32, padding: '0 14px', borderRadius: 16, border: '1px solid rgb(var(--fg-rgb) / .12)', background: 'var(--bg-surface)', font: '600 12px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)', cursor: 'pointer' };
+const filterTabActiveStyle: React.CSSProperties = { background: 'var(--fg)', borderColor: 'var(--fg)', color: 'var(--bg-page)' };
+const sortBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, height: 32, padding: '0 13px', borderRadius: 16, border: '1px solid rgb(var(--fg-rgb) / .12)', background: 'var(--bg-surface)', font: '600 12px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .6)', cursor: 'pointer' };
+const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16, padding: '13px 14px', borderRadius: 13, background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .08)' };
 const transcriptBadgeStyle: React.CSSProperties = { font: '500 9.5px/1 IBM Plex Mono', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.12)', padding: '2px 6px', borderRadius: 5 };
 const queuedBadgeStyle: React.CSSProperties = { font: '500 9.5px/1 IBM Plex Mono', color: 'oklch(0.5 0.13 70)', background: 'oklch(0.55 0.13 70 / 0.14)', padding: '2px 6px', borderRadius: 5 };
-const progressTrackStyle: React.CSSProperties = { marginTop: 8, height: 3, borderRadius: 2, background: 'rgba(32,30,26,.08)', overflow: 'hidden' };
+const progressTrackStyle: React.CSSProperties = { marginTop: 8, height: 3, borderRadius: 2, background: 'rgb(var(--fg-rgb) / .08)', overflow: 'hidden' };
 const progressFillStyle: React.CSSProperties = { height: '100%', borderRadius: 2, background: 'oklch(0.55 0.055 195)' };
-const downloadBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.6)' };
+const downloadBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgb(var(--fg-rgb) / .14)', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgb(var(--fg-rgb) / .6)' };
 const downloadBtnDoneStyle: React.CSSProperties = { background: 'oklch(0.6 0.06 155 / 0.14)', borderColor: 'oklch(0.6 0.06 155 / 0.4)' };
-const shadowBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 14px', borderRadius: 17, border: '1px solid rgba(32,30,26,.14)', background: '#211f1b', color: '#fff', font: '600 12px/1 IBM Plex Sans', cursor: 'pointer', flex: 'none' };
+const shadowBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 14px', borderRadius: 17, border: '1px solid rgb(var(--fg-rgb) / .14)', background: 'var(--fg)', color: 'var(--bg-page)', font: '600 12px/1 IBM Plex Sans', cursor: 'pointer', flex: 'none' };

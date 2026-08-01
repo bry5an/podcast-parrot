@@ -407,7 +407,7 @@ export function Player() {
   const sourceLabel = transcript ? (transcript.source === 'asr' ? 'Auto-generated' : 'Published transcript') : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fbfaf7', color: '#211f1b' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-page)', color: 'var(--fg)' }}>
           <div style={{ padding: '22px 30px 0', flex: 'none' }}>
             <button
               onClick={() => navigate(`/library/podcasts/${pId}/episodes`, { state: { podcast } })}
@@ -421,16 +421,16 @@ export function Player() {
           </div>
 
           <div style={{ flex: 1, display: 'flex', minHeight: 0, padding: '16px 0 0' }}>
-            <div style={{ width: 240, flex: 'none', borderRight: '1px solid rgba(32,30,26,.08)', padding: '4px 22px 22px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+            <div style={{ width: 240, flex: 'none', borderRight: '1px solid rgb(var(--fg-rgb) / .08)', padding: '4px 22px 22px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
               {podcast?.artwork_url ? (
                 <img src={podcast.artwork_url} alt="" style={sidebarArtStyle} />
               ) : (
-                <div style={{ ...sidebarArtStyle, background: 'rgba(32,30,26,.08)' }} />
+                <div style={{ ...sidebarArtStyle, background: 'rgb(var(--fg-rgb) / .08)' }} />
               )}
               <div>
                 <div style={{ font: '600 15px/1.35 IBM Plex Sans' }}>{episode?.title ?? '…'}</div>
                 {podcast?.title && (
-                  <div style={{ font: '400 11.5px/1.4 IBM Plex Mono', color: 'rgba(32,30,26,.5)', marginTop: 6 }}>
+                  <div style={{ font: '400 11.5px/1.4 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .5)', marginTop: 6 }}>
                     {podcast.title}
                   </div>
                 )}
@@ -472,13 +472,13 @@ export function Player() {
                 {transcriptError && (
                   <div style={emptyStateStyle}>
                     <div style={{ font: '600 15px/1.4 IBM Plex Sans', marginBottom: 8 }}>Transcript not available</div>
-                    <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgba(32,30,26,.55)' }}>
+                    <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)' }}>
                       Download the episode or check back once a transcript has been generated.
                     </div>
                   </div>
                 )}
                 {!transcriptError && !transcript && (
-                  <div style={{ font: '500 13px/1 IBM Plex Sans', color: 'rgba(32,30,26,.5)', padding: '20px 4px' }}>
+                  <div style={{ font: '500 13px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .5)', padding: '20px 4px' }}>
                     Loading transcript…
                   </div>
                 )}
@@ -539,7 +539,7 @@ export function Player() {
                 </div>
               )}
 
-              <div style={{ flex: 'none', borderTop: '1px solid rgba(32,30,26,.08)', padding: '14px 30px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ flex: 'none', borderTop: '1px solid rgb(var(--fg-rgb) / .08)', padding: '14px 30px', display: 'flex', alignItems: 'center', gap: 14 }}>
                 <button onClick={togglePlay} style={playBtnStyle} disabled={!episode} data-testid="play-pause">
                   {playing ? (
                     <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor">
@@ -560,7 +560,7 @@ export function Player() {
                   step={0.01}
                   value={currentTime}
                   onChange={onScrub}
-                  style={{ flex: 1, accentColor: '#211f1b' }}
+                  style={{ flex: 1, accentColor: 'var(--fg)' }}
                 />
                 <span style={timeLabelStyle}>{formatTime(duration)}</span>
                 <button
@@ -624,25 +624,25 @@ export function Player() {
   );
 }
 
-const backBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer', padding: '6px 4px', font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.55)' };
+const backBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer', padding: '6px 4px', font: '600 12px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)' };
 const sidebarArtStyle: React.CSSProperties = { width: '100%', aspectRatio: '1', borderRadius: 13, objectFit: 'cover', flex: 'none' };
 const downloadedBadgeStyle: React.CSSProperties = { font: '500 9.5px/1 IBM Plex Mono', color: 'oklch(0.42 0.1 155)', background: 'oklch(0.6 0.06 155 / 0.14)', padding: '3px 7px', borderRadius: 5 };
 const sourceBadgeStyle: React.CSSProperties = { font: '500 9.5px/1 IBM Plex Mono', color: 'oklch(0.42 0.06 195)', background: 'oklch(0.55 0.055 195 / 0.12)', padding: '3px 7px', borderRadius: 5 };
-const sidebarRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, background: 'rgba(32,30,26,.04)', border: '1px solid rgba(32,30,26,.06)' };
-const sidebarButtonStyle: React.CSSProperties = { ...sidebarRowStyle, cursor: 'pointer', background: '#fff', width: '100%', font: 'inherit', textAlign: 'left' };
-const sidebarLabelStyle: React.CSSProperties = { font: '500 10.5px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)', textTransform: 'uppercase', letterSpacing: '.05em' };
-const sidebarValueStyle: React.CSSProperties = { font: '600 13px/1 IBM Plex Sans', color: '#211f1b' };
-const emptyStateStyle: React.CSSProperties = { margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgba(32,30,26,.16)', borderRadius: 16 };
+const sidebarRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, background: 'rgb(var(--fg-rgb) / .04)', border: '1px solid rgb(var(--fg-rgb) / .06)' };
+const sidebarButtonStyle: React.CSSProperties = { ...sidebarRowStyle, cursor: 'pointer', background: 'var(--bg-surface)', width: '100%', font: 'inherit', textAlign: 'left' };
+const sidebarLabelStyle: React.CSSProperties = { font: '500 10.5px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .5)', textTransform: 'uppercase', letterSpacing: '.05em' };
+const sidebarValueStyle: React.CSSProperties = { font: '600 13px/1 IBM Plex Sans', color: 'var(--fg)' };
+const emptyStateStyle: React.CSSProperties = { margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgb(var(--fg-rgb) / .16)', borderRadius: 16 };
 const sentenceRowStyle: React.CSSProperties = { padding: '10px 14px', borderRadius: 10, cursor: 'pointer', font: '500 16px/1.9 "IBM Plex Sans", sans-serif' };
 const sentenceRowActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', boxShadow: 'inset 3px 0 0 oklch(0.42 0.06 195)' };
 const sentenceRowSelectedStyle: React.CSSProperties = { background: 'oklch(0.75 0.13 80 / 0.22)', boxShadow: 'inset 3px 0 0 oklch(0.6 0.15 80)' };
 const sidebarButtonActiveStyle: React.CSSProperties = { background: 'oklch(0.75 0.13 80 / 0.16)', borderColor: 'oklch(0.6 0.15 80 / 0.4)' };
-const saveBarStyle: React.CSSProperties = { flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 30px', borderTop: '1px solid rgba(32,30,26,.08)', background: 'oklch(0.75 0.13 80 / 0.08)' };
-const saveBarLabelStyle: React.CSSProperties = { font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.7)', flex: 'none' };
-const saveNameInputStyle: React.CSSProperties = { flex: 1, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(32,30,26,.14)', font: '500 13px/1 IBM Plex Sans' };
-const cancelBtnStyle: React.CSSProperties = { height: 34, padding: '0 14px', borderRadius: 8, border: '1px solid rgba(32,30,26,.14)', background: '#fff', cursor: 'pointer', font: '600 12.5px/1 IBM Plex Sans', color: 'rgba(32,30,26,.6)' };
-const saveBtnStyle: React.CSSProperties = { height: 34, padding: '0 16px', borderRadius: 8, border: 'none', background: '#211f1b', color: '#fff', cursor: 'pointer', font: '600 12.5px/1 IBM Plex Sans' };
-const playBtnStyle: React.CSSProperties = { width: 42, height: 42, flex: 'none', borderRadius: '50%', border: 'none', background: '#211f1b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
-const timeLabelStyle: React.CSSProperties = { font: '500 11px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)', flex: 'none', minWidth: 34, textAlign: 'center' };
-const loopBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.6)' };
+const saveBarStyle: React.CSSProperties = { flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 30px', borderTop: '1px solid rgb(var(--fg-rgb) / .08)', background: 'oklch(0.75 0.13 80 / 0.08)' };
+const saveBarLabelStyle: React.CSSProperties = { font: '600 12px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .7)', flex: 'none' };
+const saveNameInputStyle: React.CSSProperties = { flex: 1, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid rgb(var(--fg-rgb) / .14)', font: '500 13px/1 IBM Plex Sans' };
+const cancelBtnStyle: React.CSSProperties = { height: 34, padding: '0 14px', borderRadius: 8, border: '1px solid rgb(var(--fg-rgb) / .14)', background: 'var(--bg-surface)', cursor: 'pointer', font: '600 12.5px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .6)' };
+const saveBtnStyle: React.CSSProperties = { height: 34, padding: '0 16px', borderRadius: 8, border: 'none', background: 'var(--fg)', color: 'var(--bg-page)', cursor: 'pointer', font: '600 12.5px/1 IBM Plex Sans' };
+const playBtnStyle: React.CSSProperties = { width: 42, height: 42, flex: 'none', borderRadius: '50%', border: 'none', background: 'var(--fg)', color: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
+const timeLabelStyle: React.CSSProperties = { font: '500 11px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .5)', flex: 'none', minWidth: 34, textAlign: 'center' };
+const loopBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgb(var(--fg-rgb) / .14)', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgb(var(--fg-rgb) / .6)' };
 const loopBtnActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', borderColor: 'oklch(0.42 0.06 195 / 0.4)', color: 'oklch(0.42 0.06 195)' };
