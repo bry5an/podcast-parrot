@@ -10,21 +10,24 @@ import {
   formatKeyLabel,
   formatModifierLabel,
   isModifierKey,
+  loadAutoAdvance,
   loadKeymap,
+  loadPlaybackSpeed,
   loadSeekStepSeconds,
   modifierFromEvent,
   normalizeKey,
+  saveAutoAdvance,
   saveKeymap,
+  savePlaybackSpeed,
   saveSeekStepSeconds,
 } from '../lib/keybindings';
-import type { KeybindingAction, Keymap } from '../lib/keybindings';
-import { loadTextSize, saveTextSize } from '../lib/readingAids';
+import type { KeybindingAction, Keymap, PlaybackSpeed } from '../lib/keybindings';
+import { loadDimInactiveLines, loadShowRomaji, loadTextSize, saveDimInactiveLines, saveShowRomaji, saveTextSize } from '../lib/readingAids';
 import type { TextSize } from '../lib/readingAids';
 import { loadTheme, saveTheme } from '../lib/theme';
 import type { Theme } from '../lib/theme';
 
 type SectionId = 'playback' | 'transcription' | 'reading-aids' | 'library-storage' | 'appearance';
-type PlaybackSpeed = '0.75x' | '1x' | '1.25x' | '1.5x';
 type SeekStep = '3s' | '5s' | '10s';
 type ComputeDevice = 'cpu' | 'gpu';
 
@@ -198,15 +201,15 @@ function Section({ id, title, subtitle, registerRef, children }: {
 }
 
 export function Settings() {
-  const { currentProfile, loading } = useProfiles();
+  const { currentProfile, loading, refreshProfiles } = useProfiles();
   const navigate = useNavigate();
 
   const [activeSection, setActiveSection] = useState<SectionId>('playback');
   const sectionRefs = useRef<Partial<Record<SectionId, HTMLElement | null>>>({});
 
-  const [speed, setSpeed] = useState<PlaybackSpeed>('1x');
+  const [speed, setSpeed] = useState<PlaybackSpeed>(() => loadPlaybackSpeed());
   const [seekStep, setSeekStep] = useState<SeekStep>(() => SECONDS_TO_SEEK_STEP[loadSeekStepSeconds()] ?? SECONDS_TO_SEEK_STEP[DEFAULT_SEEK_STEP_SECONDS]);
-  const [autoAdvance, setAutoAdvance] = useState(true);
+  const [autoAdvance, setAutoAdvance] = useState(() => loadAutoAdvance());
 
   const [keymap, setKeymap] = useState<Keymap>(() => loadKeymap());
   const [listening, setListening] = useState<KeybindingAction | 'seekModifier' | null>(null);
@@ -250,6 +253,19 @@ export function Settings() {
     saveSeekStepSeconds(SEEK_STEP_SECONDS[value]);
   };
 
+  const handleSpeedChange = (value: PlaybackSpeed) => {
+    setSpeed(value);
+    savePlaybackSpeed(value);
+  };
+
+  const handleAutoAdvanceChange = () => {
+    setAutoAdvance((v) => {
+      const next = !v;
+      saveAutoAdvance(next);
+      return next;
+    });
+  };
+
   const handleTextSizeChange = (value: TextSize) => {
     setTextSize(value);
     saveTextSize(value);
@@ -260,8 +276,9 @@ export function Settings() {
   const [cacheTranscripts, setCacheTranscripts] = useState(true);
 
   const [furigana, setFurigana] = useState(true);
-  const [romaji, setRomaji] = useState(false);
-  const [dimInactive, setDimInactive] = useState(true);
+  const furiganaInitRef = useRef(false);
+  const [romaji, setRomaji] = useState(() => loadShowRomaji());
+  const [dimInactive, setDimInactive] = useState(() => loadDimInactiveLines());
   const [textSize, setTextSize] = useState<TextSize>(() => loadTextSize());
 
   const [autoRemove, setAutoRemove] = useState<AutoRemovePolicy>('never');
@@ -282,6 +299,40 @@ export function Settings() {
       })
       .catch(() => setStorageError('Could not load storage settings'));
   }, []);
+
+  useEffect(() => {
+    if (!furiganaInitRef.current && currentProfile) {
+      setFurigana(currentProfile.show_furigana);
+      furiganaInitRef.current = true;
+    }
+  }, [currentProfile]);
+
+  const handleFuriganaChange = () => {
+    if (!currentProfile) return;
+    const previous = furigana;
+    const next = !previous;
+    setFurigana(next);
+    api
+      .updateProfile(currentProfile.id, { show_furigana: next })
+      .then(() => refreshProfiles())
+      .catch(() => setFurigana(previous));
+  };
+
+  const handleRomajiChange = () => {
+    setRomaji((v) => {
+      const next = !v;
+      saveShowRomaji(next);
+      return next;
+    });
+  };
+
+  const handleDimInactiveChange = () => {
+    setDimInactive((v) => {
+      const next = !v;
+      saveDimInactiveLines(next);
+      return next;
+    });
+  };
 
   const handleAutoRemoveChange = (value: AutoRemovePolicy) => {
     const previous = autoRemove;
@@ -391,7 +442,7 @@ export function Settings() {
                   { value: '1.5x', label: '1.5×' },
                 ]}
                 value={speed}
-                onChange={setSpeed}
+                onChange={handleSpeedChange}
               />
             </div>
             <div style={{ flex: 1 }}>
@@ -412,7 +463,7 @@ export function Settings() {
             <SettingRow
               title="Auto-advance to next sentence"
               subtitle="Continue automatically when a line ends (unless looping)"
-              control={<Toggle checked={autoAdvance} onChange={() => setAutoAdvance((v) => !v)} label="Auto-advance to next sentence" />}
+              control={<Toggle checked={autoAdvance} onChange={handleAutoAdvanceChange} label="Auto-advance to next sentence" />}
             />
           </div>
         </Section>
@@ -486,17 +537,17 @@ export function Settings() {
             <SettingRow
               title="Furigana over kanji"
               subtitle="Hiragana readings above Japanese kanji"
-              control={<Toggle checked={furigana} onChange={() => setFurigana((v) => !v)} label="Furigana over kanji" />}
+              control={<Toggle checked={furigana} onChange={handleFuriganaChange} label="Furigana over kanji" />}
             />
             <SettingRow
               title="Romaji fallback"
               subtitle="Latin transliteration under Japanese lines"
-              control={<Toggle checked={romaji} onChange={() => setRomaji((v) => !v)} label="Romaji fallback" />}
+              control={<Toggle checked={romaji} onChange={handleRomajiChange} label="Romaji fallback" />}
             />
             <SettingRow
               title="Dim inactive lines"
               subtitle="Fade all but the current sentence"
-              control={<Toggle checked={dimInactive} onChange={() => setDimInactive((v) => !v)} label="Dim inactive lines" />}
+              control={<Toggle checked={dimInactive} onChange={handleDimInactiveChange} label="Dim inactive lines" />}
             />
             <SettingRow
               title="Transcript text size"

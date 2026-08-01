@@ -57,6 +57,34 @@ export function saveSeekStepSeconds(seconds: number): void {
   localStorage.setItem(SEEK_STEP_STORAGE_KEY, String(seconds));
 }
 
+export type PlaybackSpeed = '0.75x' | '1x' | '1.25x' | '1.5x';
+
+export const DEFAULT_PLAYBACK_SPEED: PlaybackSpeed = '1x';
+
+const PLAYBACK_SPEED_STORAGE_KEY = 'kotoba.playbackSpeed';
+
+export function loadPlaybackSpeed(): PlaybackSpeed {
+  const raw = localStorage.getItem(PLAYBACK_SPEED_STORAGE_KEY);
+  return raw === '0.75x' || raw === '1x' || raw === '1.25x' || raw === '1.5x' ? raw : DEFAULT_PLAYBACK_SPEED;
+}
+
+export function savePlaybackSpeed(speed: PlaybackSpeed): void {
+  localStorage.setItem(PLAYBACK_SPEED_STORAGE_KEY, speed);
+}
+
+export const DEFAULT_AUTO_ADVANCE = true;
+
+const AUTO_ADVANCE_STORAGE_KEY = 'kotoba.autoAdvance';
+
+export function loadAutoAdvance(): boolean {
+  const raw = localStorage.getItem(AUTO_ADVANCE_STORAGE_KEY);
+  return raw === null ? DEFAULT_AUTO_ADVANCE : raw === 'true';
+}
+
+export function saveAutoAdvance(value: boolean): void {
+  localStorage.setItem(AUTO_ADVANCE_STORAGE_KEY, String(value));
+}
+
 const MODIFIER_LABELS: Record<SeekModifier, string> = {
   shift: '⇧',
   alt: '⌥',
