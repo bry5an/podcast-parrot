@@ -158,5 +158,45 @@
     "language": "fr",
     "level_tag": "B1-B2",
     "locale_tag": "Canada"
+  },
+  {
+    "rss_url": "https://anchor.fm/s/10a94d170/podcast/rss",
+    "title": "Slow Korean with Stories",
+    "description": "A 3-day learn-practice-review cycle of short, simple Korean lessons and stories for absolute beginners.",
+    "artwork_url": "https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_nologo/44624924/44624924-1760702606824-b1f13eb4c81d2.jpg",
+    "language": "ko",
+    "level_tag": "A1-A2"
+  },
+  {
+    "rss_url": "https://anchor.fm/s/10b985f24/podcast/rss",
+    "title": "Easy Korean Listening with Julia",
+    "description": "Slow, clear Korean listening practice built around everyday topics and grammar points, for beginner-to-intermediate learners.",
+    "artwork_url": "https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_nologo/44795025/44795025-1763189034394-93169093d6307.jpg",
+    "language": "ko",
+    "level_tag": "A2-B1"
+  },
+  {
+    "rss_url": "https://anchor.fm/s/c5592f0c/podcast/rss",
+    "title": "Choisusu's Korean Podcast",
+    "description": "A Korean teacher covers everyday topics with useful vocabulary, grammar, and natural expressions for beginner-to-intermediate learners.",
+    "artwork_url": "https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_nologo/33009563/33009563-1743583970862-150b2640a48ae.jpg",
+    "language": "ko",
+    "level_tag": "A2-B2"
+  },
+  {
+    "rss_url": "https://anchor.fm/s/fb454588/podcast/rss",
+    "title": "Slow Korean",
+    "description": "Current-events and cultural topics discussed at a slightly slower pace, with PDF transcripts, for intermediate learners.",
+    "artwork_url": "https://d3t3ozftmdmh3i.cloudfront.net/staging/podcast_uploaded_nologo/42056210/42056210-1726772055525-f0a00b196ea0c.jpg",
+    "language": "ko",
+    "level_tag": "B1-B2"
+  },
+  {
+    "rss_url": "https://rss.libsyn.com/shows/18454/destinations/12619.xml",
+    "title": "Talk To Me In Korean",
+    "description": "The long-running Talk To Me In Korean podcast, featuring natural-paced Korean conversations alongside lesson content, for intermediate-to-advanced learners.",
+    "artwork_url": "https://static.libsyn.com/p/assets/0/e/6/4/0e64f56ac6beede7d959afa2a1bf1c87/ttmik_logo_2026_new_blue.jpg",
+    "language": "ko",
+    "level_tag": "B2-C1"
   }
 ]
