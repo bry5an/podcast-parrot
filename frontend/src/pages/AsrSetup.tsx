@@ -64,7 +64,7 @@ export function AsrSetup() {
     <div style={styles.page}>
       <div style={styles.brand}>
         <div style={styles.brandMark}>
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="#fff" strokeWidth={1.7}>
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="var(--bg-page)" strokeWidth={1.7}>
             <path d="M6 10a4 4 0 0 1 8 0M8.5 10v4M11.5 10v4M10 3v3" />
           </svg>
         </div>
@@ -84,7 +84,7 @@ export function AsrSetup() {
         {installed ? (
           <div style={styles.doneCard} data-testid="asr-setup-done">
             <div style={{ font: '600 15px/1.4 IBM Plex Sans' }}>Model installed</div>
-            <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgba(32,30,26,.55)', marginTop: 4 }}>
+            <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)', marginTop: 4 }}>
               You&apos;re all set — episodes without a transcript will now be transcribed automatically.
             </div>
             <button onClick={finish} style={styles.primaryBtn}>
@@ -152,30 +152,30 @@ export function AsrSetup() {
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: '100vh',
-    background: 'radial-gradient(120% 90% at 50% -10%, #f3f0ea, #efece5 55%, #eae6df)',
+    background: 'var(--bg-gradient)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
   },
   brand: { display: 'flex', alignItems: 'center', gap: 9, padding: '26px 0 0' },
-  brandMark: { width: 26, height: 26, borderRadius: 7, background: '#211f1b', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  brandMark: { width: 26, height: 26, borderRadius: 7, background: 'var(--fg)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 34, padding: 20 },
-  eyebrow: { font: '500 11px/1 IBM Plex Mono', letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(32,30,26,.45)', marginBottom: 12 },
+  eyebrow: { font: '500 11px/1 IBM Plex Mono', letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgb(var(--fg-rgb) / .45)', marginBottom: 12 },
   h1: { font: '600 28px/1.25 IBM Plex Sans', margin: 0 },
-  copy: { font: '400 13.5px/1.6 IBM Plex Sans', color: 'rgba(32,30,26,.6)', marginTop: 14 },
+  copy: { font: '400 13.5px/1.6 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .6)', marginTop: 14 },
   cardRow: { display: 'flex', gap: 18, alignItems: 'stretch' },
-  card: { position: 'relative', width: 190, padding: '20px 18px', borderRadius: 16, background: '#fff', border: '1px solid rgba(32,30,26,.1)', display: 'flex', flexDirection: 'column', gap: 8 },
+  card: { position: 'relative', width: 190, padding: '20px 18px', borderRadius: 16, background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .1)', display: 'flex', flexDirection: 'column', gap: 8 },
   cardRecommended: { border: '1.5px solid oklch(0.55 0.055 195)' },
   recommendedTag: { position: 'absolute', top: -11, left: 18, font: '600 9.5px/1 IBM Plex Mono', letterSpacing: '.04em', textTransform: 'uppercase', color: '#fff', background: 'oklch(0.55 0.055 195)', padding: '3px 8px', borderRadius: 6 },
-  mono: { font: '500 11px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)' },
-  blurb: { font: '400 11.5px/1.5 IBM Plex Sans', color: 'rgba(32,30,26,.55)', minHeight: 48 },
-  downloadBtn: { height: 36, borderRadius: 18, border: 'none', background: '#211f1b', color: '#fff', font: '600 12.5px/1 IBM Plex Sans', cursor: 'pointer', marginTop: 4 },
+  mono: { font: '500 11px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .5)' },
+  blurb: { font: '400 11.5px/1.5 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)', minHeight: 48 },
+  downloadBtn: { height: 36, borderRadius: 18, border: 'none', background: 'var(--fg)', color: 'var(--bg-page)', font: '600 12.5px/1 IBM Plex Sans', cursor: 'pointer', marginTop: 4 },
   downloadBtnDisabled: { opacity: 0.5, cursor: 'not-allowed' },
-  progressTrack: { marginTop: 4, height: 4, borderRadius: 2, background: 'rgba(32,30,26,.08)', overflow: 'hidden' },
+  progressTrack: { marginTop: 4, height: 4, borderRadius: 2, background: 'rgb(var(--fg-rgb) / .08)', overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 2, background: 'oklch(0.55 0.055 195)' },
   errorBox: { font: '400 11px/1.5 IBM Plex Sans', color: 'oklch(0.5 0.13 25)', marginTop: 2, display: 'flex', flexDirection: 'column', gap: 6 },
-  retryBtn: { alignSelf: 'flex-start', height: 26, padding: '0 12px', borderRadius: 13, border: '1px solid oklch(0.5 0.13 25 / 0.4)', background: '#fff', color: 'oklch(0.5 0.13 25)', font: '600 11px/1 IBM Plex Sans', cursor: 'pointer' },
-  skipBtn: { border: 'none', background: 'none', cursor: 'pointer', font: '600 12.5px/1 IBM Plex Sans', color: 'rgba(32,30,26,.45)', textDecoration: 'underline' },
-  doneCard: { width: 360, textAlign: 'center', padding: '28px 26px', borderRadius: 16, background: '#fff', border: '1px solid rgba(32,30,26,.1)' },
-  primaryBtn: { height: 42, width: '100%', marginTop: 18, borderRadius: 21, border: 'none', background: '#211f1b', color: '#fff', font: '600 13px/1 IBM Plex Sans', cursor: 'pointer' },
+  retryBtn: { alignSelf: 'flex-start', height: 26, padding: '0 12px', borderRadius: 13, border: '1px solid oklch(0.5 0.13 25 / 0.4)', background: 'var(--bg-surface)', color: 'oklch(0.5 0.13 25)', font: '600 11px/1 IBM Plex Sans', cursor: 'pointer' },
+  skipBtn: { border: 'none', background: 'none', cursor: 'pointer', font: '600 12.5px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .45)', textDecoration: 'underline' },
+  doneCard: { width: 360, textAlign: 'center', padding: '28px 26px', borderRadius: 16, background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .1)' },
+  primaryBtn: { height: 42, width: '100%', marginTop: 18, borderRadius: 21, border: 'none', background: 'var(--fg)', color: 'var(--bg-page)', font: '600 13px/1 IBM Plex Sans', cursor: 'pointer' },
 };

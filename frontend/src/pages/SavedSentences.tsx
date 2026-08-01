@@ -129,7 +129,7 @@ export function SavedSentences() {
   if (!currentProfile) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#fbfaf7', color: '#211f1b' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-page)', color: 'var(--fg)' }}>
       <div style={{ padding: '22px 30px 0', flex: 'none' }}>
         <button onClick={() => navigate('/library')} style={backBtnStyle}>
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}>
@@ -141,7 +141,7 @@ export function SavedSentences() {
 
       <div style={{ padding: '16px 30px 20px', flex: 'none' }}>
         <h1 style={{ font: '600 22px/1.25 IBM Plex Sans', margin: 0 }}>Saved Sentences</h1>
-        <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)', marginTop: 8 }}>
+        <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .5)', marginTop: 8 }}>
           {loaded ? (clips.length === 1 ? '1 saved clip' : `${clips.length} saved clips`) : '…'}
         </div>
       </div>
@@ -212,7 +212,7 @@ export function SavedSentences() {
                 onClick={() =>
                   navigate(`/library/podcasts/${clip.podcast_id}/episodes/${clip.episode_id}/player`)
                 }
-                style={{ font: '500 11.5px/1 IBM Plex Mono', color: 'rgba(32,30,26,.5)', marginTop: 6, cursor: 'pointer' }}
+                style={{ font: '500 11.5px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .5)', marginTop: 6, cursor: 'pointer' }}
               >
                 {clip.podcast_title} · {clip.episode_title}
               </div>
@@ -260,11 +260,11 @@ export function SavedSentences() {
                   })()}
                 </div>
               ) : (
-                <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgba(32,30,26,.7)', marginTop: 6 }}>
+                <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .7)', marginTop: 6 }}>
                   {clip.text}
                 </div>
               )}
-              <div style={{ font: '400 10.5px/1 IBM Plex Mono', color: 'rgba(32,30,26,.4)', marginTop: 8 }}>
+              <div style={{ font: '400 10.5px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .4)', marginTop: 8 }}>
                 Saved {formatDate(clip.created_at)}
               </div>
             </div>
@@ -282,9 +282,9 @@ export function SavedSentences() {
           </div>
         ))}
         {loaded && clips.length === 0 && (
-          <div style={{ margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgba(32,30,26,.16)', borderRadius: 16 }}>
+          <div style={{ margin: '30px auto', textAlign: 'center', maxWidth: 360, padding: '40px 24px', border: '1.5px dashed rgb(var(--fg-rgb) / .16)', borderRadius: 16 }}>
             <div style={{ font: '600 15px/1.4 IBM Plex Sans', marginBottom: 8 }}>No saved sentences yet</div>
-            <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgba(32,30,26,.55)' }}>
+            <div style={{ font: '400 13px/1.6 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)' }}>
               Toggle Select in the Shadowing Player, pick up to 5 sentences, and save them here.
             </div>
           </div>
@@ -334,14 +334,14 @@ export function SavedSentences() {
   );
 }
 
-const backBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer', padding: '6px 4px', font: '600 12px/1 IBM Plex Sans', color: 'rgba(32,30,26,.55)' };
-const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '13px 14px', borderRadius: 13, background: '#fff', border: '1px solid rgba(32,30,26,.08)' };
-const playBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: 'none', background: '#211f1b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
-const repeatBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.6)' };
+const backBtnStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer', padding: '6px 4px', font: '600 12px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)' };
+const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 14, padding: '13px 14px', borderRadius: 13, background: 'var(--bg-surface)', border: '1px solid rgb(var(--fg-rgb) / .08)' };
+const playBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: 'none', background: 'var(--fg)', color: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' };
+const repeatBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgb(var(--fg-rgb) / .14)', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgb(var(--fg-rgb) / .6)' };
 const repeatBtnActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', borderColor: 'oklch(0.42 0.06 195 / 0.4)', color: 'oklch(0.42 0.06 195)' };
-const deleteBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.12)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.5)' };
-const nameInputStyle: React.CSSProperties = { width: '100%', height: 28, padding: '0 8px', borderRadius: 6, border: '1px solid rgba(32,30,26,.2)', font: '600 14px/1 IBM Plex Sans' };
+const deleteBtnStyle: React.CSSProperties = { width: 34, height: 34, flex: 'none', borderRadius: '50%', border: '1px solid rgb(var(--fg-rgb) / .12)', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgb(var(--fg-rgb) / .5)' };
+const nameInputStyle: React.CSSProperties = { width: '100%', height: 28, padding: '0 8px', borderRadius: 6, border: '1px solid rgb(var(--fg-rgb) / .2)', font: '600 14px/1 IBM Plex Sans' };
 const clipSentenceRowStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 8, font: '500 23px/1.7 "IBM Plex Sans", sans-serif' };
 const clipSentenceRowActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', boxShadow: 'inset 3px 0 0 oklch(0.42 0.06 195)' };
-const sentenceRepeatBtnStyle: React.CSSProperties = { width: 22, height: 22, flex: 'none', borderRadius: '50%', border: '1px solid rgba(32,30,26,.14)', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(32,30,26,.45)' };
+const sentenceRepeatBtnStyle: React.CSSProperties = { width: 22, height: 22, flex: 'none', borderRadius: '50%', border: '1px solid rgb(var(--fg-rgb) / .14)', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgb(var(--fg-rgb) / .45)' };
 const sentenceRepeatBtnActiveStyle: React.CSSProperties = { background: 'oklch(0.55 0.055 195 / 0.14)', borderColor: 'oklch(0.42 0.06 195 / 0.4)', color: 'oklch(0.42 0.06 195)' };
