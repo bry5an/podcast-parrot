@@ -1,8 +1,8 @@
-# Kotoba
+# Ausculto
 
 [![CI](https://github.com/bry5an/podcast-parrot/actions/workflows/ci.yml/badge.svg)](https://github.com/bry5an/podcast-parrot/actions/workflows/ci.yml)
 
-Kotoba is a macOS app for learning a language from podcasts. It plays an episode alongside a synced, scrolling transcript, so you can follow along, tap any word for a definition, and save sentences you want to review later.
+Ausculto is a macOS app for learning a language from podcasts. It plays an episode alongside a synced, scrolling transcript, so you can follow along, tap any word for a definition, and save sentences you want to review later.
 
 It ships with a curated directory of Japanese-learning podcasts, but you can add any podcast RSS feed or YouTube playlist as a source. Episodes that don't already publish a transcript are transcribed automatically on-device.
 
@@ -24,7 +24,7 @@ It ships with a curated directory of Japanese-learning podcasts, but you can add
 
 ## Getting started
 
-Kotoba doesn't have a signed, notarized release yet, so for now you'll build it from source. This takes a few minutes and only needs to be done once:
+Ausculto doesn't have a signed, notarized release yet, so for now you'll build it from source. This takes a few minutes and only needs to be done once:
 
 ```
 git clone https://github.com/bry5an/podcast-parrot.git
@@ -33,15 +33,15 @@ make install
 make build
 ```
 
-`make build` produces `Kotoba.app` and a `Kotoba.dmg` under `desktop/src-tauri/target/release/bundle/`. Open the `.dmg` and drag `Kotoba.app` to Applications.
+`make build` produces `Ausculto.app` and an `Ausculto.dmg` under `desktop/src-tauri/target/release/bundle/`. Open the `.dmg` and drag `Ausculto.app` to Applications.
 
 Because the app is only ad-hoc signed (not signed with a paid Apple Developer ID), the first launch needs one extra step to clear the quarantine flag Gatekeeper adds to anything downloaded or built locally:
 
 ```
-xattr -dr com.apple.quarantine /Applications/Kotoba.app
+xattr -dr com.apple.quarantine /Applications/Ausculto.app
 ```
 
-After that, launch Kotoba like any other app. On first run it'll ask you to pick a profile, walk you through setting up transcription, and let you add your first podcast.
+After that, launch Ausculto like any other app. On first run it'll ask you to pick a profile, walk you through setting up transcription, and let you add your first podcast.
 
 ## Documentation
 

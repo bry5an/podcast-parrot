@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke-tests a built Kotoba.app by launching its embedded kotoba-backend
+# Smoke-tests a built Ausculto.app by launching its embedded kotoba-backend
 # binary directly with --port/--data-dir (bypassing the Tauri shell/GUI,
 # which CI runners can't drive) and asserting /api/health responds. This is
 # what actually catches a broken kotoba-backend.spec / bundle.macOS.files
@@ -7,7 +7,7 @@
 # .app by hand (see the #26 "PyInstaller one-dir + real .app bundle" gotcha).
 set -euo pipefail
 
-app_path="${1:?usage: smoke_test.sh <path-to-Kotoba.app>}"
+app_path="${1:?usage: smoke_test.sh <path-to-Ausculto.app>}"
 backend_bin="$app_path/Contents/MacOS/kotoba-backend"
 port=18420
 
