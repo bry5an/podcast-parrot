@@ -6,7 +6,17 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session, SQLModel, select
 
 from app.db import get_session
-from app.models import DownloadStatus, Episode, PlaybackState, Podcast, Sentence, TranscriptSource, TranscriptStatus
+from app.models import (
+    AppSettings,
+    DownloadStatus,
+    Episode,
+    PlaybackState,
+    Podcast,
+    Sentence,
+    Transcript,
+    TranscriptSource,
+    TranscriptStatus,
+)
 from app.services import transcription
 from app.services.downloads import download_episode_audio, remove_audio, resolve_audio_path, retry_transcription
 from app.services.episodes import sync_episodes
@@ -138,6 +148,25 @@ def start_transcription(episode_id: int, background_tasks: BackgroundTasks, sess
         raise HTTPException(status_code=404, detail="Episode not found")
     if not episode.local_audio_path:
         raise HTTPException(status_code=400, detail="Episode audio has not been downloaded yet")
+
+    # A full transcript is normally left alone (see the noop test below), but
+    # when "Cache generated transcripts" is off, an explicit re-transcribe
+    # request is honored: the stale Transcript row is dropped (no cascade in
+    # this schema, same precedent as #103's delete_feed) and a fresh ASR run
+    # is queued exactly like any other retry.
+    if episode.transcript_status == TranscriptStatus.full:
+        settings = session.get(AppSettings, 1)
+        if settings is not None and not settings.cache_transcripts:
+            existing = session.exec(select(Transcript).where(Transcript.episode_id == episode_id)).first()
+            if existing:
+                session.delete(existing)
+                session.commit()
+            episode.transcript_status = TranscriptStatus.pending
+            session.add(episode)
+            session.commit()
+            session.refresh(episode)
+            background_tasks.add_task(retry_transcription, episode.id)
+        return episode
 
     if episode.transcript_status in (
         TranscriptStatus.none,

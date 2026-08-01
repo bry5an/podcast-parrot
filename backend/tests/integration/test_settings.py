@@ -7,6 +7,23 @@ def test_get_settings_creates_default_row(client, monkeypatch, tmp_path):
     body = response.json()
     assert body["auto_remove"] == "never"
     assert body["storage_root"] == str(tmp_path)
+    assert body["compute_device"] == "gpu"
+    assert body["cache_transcripts"] is True
+
+
+def test_patch_settings_persists_compute_device_and_cache_transcripts(client, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
+
+    response = client.patch("/api/settings", json={"compute_device": "cpu", "cache_transcripts": False})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["compute_device"] == "cpu"
+    assert body["cache_transcripts"] is False
+
+    response = client.get("/api/settings")
+    body = response.json()
+    assert body["compute_device"] == "cpu"
+    assert body["cache_transcripts"] is False
 
 
 def test_patch_settings_persists_auto_remove(client, monkeypatch, tmp_path):

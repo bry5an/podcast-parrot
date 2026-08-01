@@ -9,7 +9,7 @@ from sqlmodel import SQLModel
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = 8
+CURRENT_VERSION = 9
 
 Migration = Callable[[sqlite3.Connection], None]
 
@@ -141,6 +141,13 @@ def _add_podcast_locale_tag(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE podcast ADD COLUMN locale_tag VARCHAR")
 
 
+def _add_appsettings_compute_and_cache(conn: sqlite3.Connection) -> None:
+    # NOT NULL with a literal DEFAULT works for plain ADD COLUMN in SQLite,
+    # same ADD-COLUMN shape as v5/v8 — no table rebuild needed.
+    conn.execute("ALTER TABLE appsettings ADD COLUMN compute_device VARCHAR(3) NOT NULL DEFAULT 'gpu'")
+    conn.execute("ALTER TABLE appsettings ADD COLUMN cache_transcripts BOOLEAN NOT NULL DEFAULT 1")
+
+
 # Keyed by the version each step migrates *to*. Version 1 is exactly the schema
 # `SQLModel.metadata.create_all()` produces, so it has no step here — both a
 # brand-new database and a pre-migration one are simply stamped at that version.
@@ -152,6 +159,7 @@ MIGRATIONS: dict[int, Migration] = {
     6: _add_profile_last_used_at,
     7: _profile_direction_to_learning_language,
     8: _add_podcast_locale_tag,
+    9: _add_appsettings_compute_and_cache,
 }
 
 
@@ -168,7 +176,10 @@ def run(db_path: Path, engine: Engine) -> None:
         SQLModel.metadata.create_all(engine)
         conn = sqlite3.connect(db_path, isolation_level=None)
         try:
-            conn.execute("INSERT INTO appsettings (id, auto_remove) VALUES (1, 'never')")
+            conn.execute(
+                "INSERT INTO appsettings (id, auto_remove, compute_device, cache_transcripts) "
+                "VALUES (1, 'never', 'gpu', 1)"
+            )
         finally:
             conn.close()
         _stamp(db_path, CURRENT_VERSION)

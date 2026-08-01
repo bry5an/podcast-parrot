@@ -1,4 +1,6 @@
-from app.models import DownloadStatus, Episode, Podcast
+import json
+
+from app.models import DownloadStatus, Episode, Podcast, Sentence, Transcript, TranscriptSource
 
 
 def _make_podcast(session, **overrides) -> Podcast:
@@ -41,6 +43,7 @@ def test_storage_stats_reflect_real_files_on_disk(client, session, monkeypatch, 
     assert body["bytes_used"] == 1250
     assert body["episode_count"] == 1
     assert body["storage_root"] == str(tmp_path)
+    assert body["transcript_bytes"] == 0
 
 
 def test_storage_stats_handles_missing_directory(client, monkeypatch, tmp_path):
@@ -50,3 +53,31 @@ def test_storage_stats_handles_missing_directory(client, monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert response.json()["bytes_used"] == 0
+
+
+def test_storage_stats_sums_transcript_row_bytes(client, session, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.paths.storage_dir", lambda: tmp_path)
+    podcast = _make_podcast(session)
+    episode = _make_episode(session, podcast)
+    transcript = Transcript(episode_id=episode.id, language="ja", source=TranscriptSource.asr)
+    session.add(transcript)
+    session.commit()
+    session.refresh(transcript)
+    sentence = Sentence(
+        transcript_id=transcript.id,
+        index=0,
+        start_time=0.0,
+        end_time=1.0,
+        text="こんにちは",
+        segments=[{"base": "こんにちは", "reading": "こんにちは"}],
+    )
+    session.add(sentence)
+    session.commit()
+
+    response = client.get("/api/storage")
+
+    assert response.status_code == 200
+    expected = len("こんにちは".encode()) + len(
+        json.dumps([{"base": "こんにちは", "reading": "こんにちは"}]).encode()
+    )
+    assert response.json()["transcript_bytes"] == expected

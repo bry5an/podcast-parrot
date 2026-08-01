@@ -174,16 +174,22 @@ export interface StorageStats {
   bytes_used: number;
   episode_count: number;
   storage_root: string;
+  transcript_bytes: number;
 }
 
 export type AutoRemovePolicy = 'never' | '7d' | '30d';
+export type ComputeDevice = 'cpu' | 'gpu';
 
 export interface AppSettings {
   auto_remove: AutoRemovePolicy;
   storage_root: string;
+  compute_device: ComputeDevice;
+  cache_transcripts: boolean;
 }
 
 export interface AppSettingsUpdate {
   auto_remove?: AutoRemovePolicy;
   storage_root?: string;
+  compute_device?: ComputeDevice;
+  cache_transcripts?: boolean;
 }

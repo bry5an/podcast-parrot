@@ -37,10 +37,32 @@ function renderSettings() {
 describe('Settings', () => {
   beforeEach(() => {
     vi.mocked(api.listProfiles).mockResolvedValue([profile]);
-    vi.mocked(api.getStorageStats).mockResolvedValue({ bytes_used: 0, episode_count: 0, storage_root: '/tmp/storage' });
-    vi.mocked(api.getSettings).mockResolvedValue({ auto_remove: 'never', storage_root: '/tmp/storage' });
-    vi.mocked(api.updateSettings).mockResolvedValue({ auto_remove: 'never', storage_root: '/tmp/storage' });
+    vi.mocked(api.getStorageStats).mockResolvedValue({
+      bytes_used: 0,
+      episode_count: 0,
+      storage_root: '/tmp/storage',
+      transcript_bytes: 0,
+    });
+    vi.mocked(api.getSettings).mockResolvedValue({
+      auto_remove: 'never',
+      storage_root: '/tmp/storage',
+      compute_device: 'gpu',
+      cache_transcripts: true,
+    });
+    vi.mocked(api.updateSettings).mockResolvedValue({
+      auto_remove: 'never',
+      storage_root: '/tmp/storage',
+      compute_device: 'gpu',
+      cache_transcripts: true,
+    });
     vi.mocked(api.updateProfile).mockResolvedValue({ ...profile, show_furigana: false });
+    vi.mocked(api.listModels).mockResolvedValue([
+      { name: 'tiny', size_bytes: 77_691_713, installed: true, active: false },
+      { name: 'base', size_bytes: 147_951_465, installed: true, active: true },
+      { name: 'small', size_bytes: 487_601_967, installed: false, active: false },
+    ]);
+    vi.mocked(api.downloadModel).mockResolvedValue({ name: 'small', size_bytes: 487_601_967, installed: false, active: false });
+    vi.mocked(api.getModelStatus).mockResolvedValue({ state: 'installed', bytes_done: 487_601_967, bytes_total: 487_601_967, error: null });
   });
 
   it('renders all five sections once a profile is loaded', async () => {
@@ -102,18 +124,44 @@ describe('Settings', () => {
     expect(loadAutoAdvance()).toBe(false);
   });
 
-  it('selects a different Whisper model card on click', async () => {
+  it('renders the real Whisper model catalog with the active model marked', async () => {
     localStorage.setItem('kotoba.profileId', '1');
     renderSettings();
     await screen.findByRole('heading', { name: 'Transcription' });
 
-    const small = screen.getByRole('button', { name: /Small/ });
-    const medium = screen.getByRole('button', { name: /Medium/ });
-    expect(small).toHaveAttribute('aria-pressed', 'true');
-
-    await userEvent.click(medium);
-    expect(medium).toHaveAttribute('aria-pressed', 'true');
+    const base = await screen.findByRole('button', { name: /base/i });
+    const small = screen.getByRole('button', { name: /small/i });
+    expect(base).toHaveAttribute('aria-pressed', 'true');
     expect(small).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('downloads and activates an uninstalled model on click', async () => {
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Transcription' });
+
+    const small = await screen.findByRole('button', { name: /small/i });
+    await userEvent.click(small);
+
+    expect(api.downloadModel).toHaveBeenCalledWith('small');
+  });
+
+  it('persists the compute device selection via the API', async () => {
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Transcription' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'CPU' }));
+    expect(api.updateSettings).toHaveBeenCalledWith({ compute_device: 'cpu' });
+  });
+
+  it('persists the cache-transcripts toggle via the API', async () => {
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Transcription' });
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Cache generated transcripts' }));
+    expect(api.updateSettings).toHaveBeenCalledWith({ cache_transcripts: false });
   });
 
   it('navigates back to /library from the back chevron', async () => {
@@ -203,12 +251,18 @@ describe('Settings', () => {
   });
 
   it('renders real storage usage and download location from the API', async () => {
-    vi.mocked(api.getStorageStats).mockResolvedValue({ bytes_used: 2_400_000_000, episode_count: 38, storage_root: '/tmp/storage' });
+    vi.mocked(api.getStorageStats).mockResolvedValue({
+      bytes_used: 2_400_000_000,
+      episode_count: 38,
+      storage_root: '/tmp/storage',
+      transcript_bytes: 4_200_000,
+    });
     localStorage.setItem('kotoba.profileId', '1');
     renderSettings();
 
     expect(await screen.findByText('2.2 GB · 38 episodes')).toBeInTheDocument();
     expect(screen.getByText('/tmp/storage')).toBeInTheDocument();
+    expect(screen.getByText('Audio: 2.2 GB · Transcripts: 4 MB')).toBeInTheDocument();
   });
 
   it('persists the auto-remove policy via the API', async () => {
