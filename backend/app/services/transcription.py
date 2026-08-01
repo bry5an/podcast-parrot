@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app import paths
+from app.models import ComputeDevice
 from app.services import whisper_models
 from app.services.transcript_parsers import Cue
 
@@ -83,6 +84,8 @@ def _model_path() -> Path:
     return whisper_models.active_model_path()
 
 
+
+
 def _segment_to_cues(segment: "_Segment") -> list[Cue]:
     text = segment.text.strip()
     if not text:
@@ -129,7 +132,13 @@ def _decode_to_wav(audio_path: str, wav_path: str) -> None:
         raise TranscriptionError(f"afconvert failed ({result.returncode}): {result.stderr.strip()}")
 
 
-def _run_whisper_cli(wav_path: str, language: str | None, output_prefix: str, episode_id: int | None) -> None:
+def _run_whisper_cli(
+    wav_path: str,
+    language: str | None,
+    output_prefix: str,
+    episode_id: int | None,
+    compute_device: ComputeDevice,
+) -> None:
     model_path = _model_path()
     if not model_path.is_file():
         raise WhisperModelNotFoundError(f"whisper.cpp model not found at {model_path}")
@@ -152,6 +161,8 @@ def _run_whisper_cli(wav_path: str, language: str | None, output_prefix: str, ep
         "-np",
         "-pp",
     ]
+    if compute_device == ComputeDevice.cpu:
+        command.append("-ng")
 
     # Popen + a background stderr reader (rather than subprocess.run) so
     # "-pp"'s incremental "progress = NN%" lines can update _progress as the
@@ -220,7 +231,10 @@ def _parse_whisper_json(json_path: str) -> tuple[list[_Segment], str]:
 
 
 def transcribe_audio(
-    audio_path: str, language: str | None = None, episode_id: int | None = None
+    audio_path: str,
+    language: str | None = None,
+    episode_id: int | None = None,
+    compute_device: ComputeDevice = ComputeDevice.gpu,
 ) -> tuple[list[Cue], str]:
     """Run whisper.cpp over a local audio file, returning ordered Cues
     (segment-level, split further on sentence-ending punctuation using
@@ -232,7 +246,7 @@ def transcribe_audio(
     output_prefix = os.path.join(tmp_dir, "result")
     try:
         _decode_to_wav(audio_path, wav_path)
-        _run_whisper_cli(wav_path, language, output_prefix, episode_id)
+        _run_whisper_cli(wav_path, language, output_prefix, episode_id, compute_device)
         segments, detected_language = _parse_whisper_json(output_prefix + ".json")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)

@@ -6,7 +6,7 @@ import { DefinitionPopover } from '../components/DefinitionPopover';
 import { useProfiles } from '../state/ProfileContext';
 import { useToast } from '../state/ToastContext';
 import { invokeTauri, listenTauri } from '../lib/tauri';
-import { eventMatchesModifier, loadKeymap, loadSeekStepSeconds, normalizeKey } from '../lib/keybindings';
+import { eventMatchesModifier, loadAutoAdvance, loadKeymap, loadPlaybackSpeed, loadSeekStepSeconds, normalizeKey } from '../lib/keybindings';
 import { findActiveIndex } from '../lib/transcriptSync';
 import { loadTextSize, TEXT_SIZE_PX } from '../lib/readingAids';
 import type { DictionaryEntry, Episode, Podcast, Sentence, Transcript } from '../lib/types';
@@ -21,6 +21,7 @@ interface WordPopupState {
 }
 
 const SPEEDS = [0.75, 1, 1.25, 1.5] as const;
+const SPEED_LABELS = ['0.75x', '1x', '1.25x', '1.5x'] as const;
 
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return '0:00';
@@ -52,7 +53,10 @@ export function Player() {
   const [duration, setDuration] = useState(0);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [loopOne, setLoopOne] = useState(false);
-  const [speedIdx, setSpeedIdx] = useState(1);
+  const [speedIdx, setSpeedIdx] = useState(() => {
+    const idx = SPEED_LABELS.indexOf(loadPlaybackSpeed());
+    return idx === -1 ? 1 : idx;
+  });
   const [showFurigana, setShowFurigana] = useState(true);
   const [textSize] = useState(() => loadTextSize());
   const [, setShadowed] = useState<Set<number>>(new Set());
@@ -68,6 +72,7 @@ export function Player() {
   const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const activeIndexRef = useRef(-1);
   const loopOneRef = useRef(false);
+  const autoAdvanceRef = useRef(loadAutoAdvance());
   const furiganaInitRef = useRef(false);
   const resumedRef = useRef(false);
   const autoplayRef = useRef((location.state as { autoplay?: boolean } | null)?.autoplay ?? false);
@@ -291,6 +296,11 @@ export function Player() {
       markShadowed(prevIndex);
       if (loopOneRef.current) {
         audio.currentTime = list[prevIndex].start_time;
+        return;
+      }
+      if (!autoAdvanceRef.current) {
+        audio.pause();
+        audio.currentTime = list[prevIndex].end_time;
         return;
       }
     }

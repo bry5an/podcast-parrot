@@ -66,7 +66,12 @@ export function Episodes() {
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState<EpisodeFilter>('all');
   const [sort, setSort] = useState<EpisodeSort>('newest');
+  const [cacheTranscripts, setCacheTranscripts] = useState(true);
   const pollTimers = useRef<Record<number, number>>({});
+
+  useEffect(() => {
+    api.getSettings().then((s) => setCacheTranscripts(s.cache_transcripts));
+  }, []);
 
   // requestSeq guards against out-of-order responses: only the response to the
   // most-recently-issued request is applied, so a slow request for a stale
@@ -309,7 +314,8 @@ export function Episodes() {
                     (ep.transcript_status === 'none' ||
                       ep.transcript_status === 'queued' ||
                       ep.transcript_status === 'pending' ||
-                      ep.transcript_status === 'failed') && (
+                      ep.transcript_status === 'failed' ||
+                      (ep.transcript_status === 'full' && !cacheTranscripts)) && (
                       <TranscribeButton episode={ep} onTranscribe={() => startTranscription(ep)} />
                     )}
                   <DownloadButton episode={ep} onDownload={() => startDownload(ep)} onRemove={() => removeDownload(ep)} />
@@ -372,8 +378,10 @@ function TranscribeButton({ episode, onTranscribe }: { episode: Episode; onTrans
     return null;
   }
   const isRetry = episode.transcript_status === 'queued' || episode.transcript_status === 'failed';
+  const isRetranscribe = episode.transcript_status === 'full';
+  const title = isRetranscribe ? 'Re-transcribe' : isRetry ? 'Retry transcription' : 'Transcribe';
   return (
-    <button onClick={onTranscribe} style={downloadBtnStyle} title={isRetry ? 'Retry transcription' : 'Transcribe'}>
+    <button onClick={onTranscribe} style={downloadBtnStyle} title={title}>
       <svg
         width="15"
         height="15"

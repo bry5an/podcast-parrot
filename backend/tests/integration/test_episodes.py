@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from sqlmodel import select
+
 from app.models import (
     DownloadStatus,
     Episode,
@@ -234,6 +236,34 @@ def test_start_transcription_noop_when_already_transcribed(client, session, monk
     assert response.status_code == 202
     assert response.json()["transcript_status"] == "full"
     assert calls == []
+
+
+def test_start_transcription_forces_retranscribe_when_cache_disabled(client, session, monkeypatch):
+    podcast = _make_podcast(session)
+    episode = _make_episode(
+        session,
+        podcast,
+        download_status=DownloadStatus.downloaded,
+        local_audio_path="1.mp3",
+        transcript_status=TranscriptStatus.full,
+    )
+    transcript = Transcript(episode_id=episode.id, language="ja", source=TranscriptSource.asr)
+    session.add(transcript)
+    session.commit()
+
+    response = client.patch("/api/settings", json={"cache_transcripts": False})
+    assert response.status_code == 200
+
+    calls = []
+    monkeypatch.setattr("app.api.episodes.retry_transcription", lambda episode_id: calls.append(episode_id))
+
+    response = client.post(f"/api/episodes/{episode.id}/transcribe")
+    assert response.status_code == 202
+    assert response.json()["transcript_status"] == "pending"
+    assert calls == [episode.id]
+
+    remaining = session.exec(select(Transcript).where(Transcript.episode_id == episode.id)).first()
+    assert remaining is None
 
 
 def test_delete_download(client, session, monkeypatch, tmp_path):

@@ -4,6 +4,7 @@ import subprocess
 
 import pytest
 
+from app.models import ComputeDevice
 from app.services.transcript_parsers import Cue
 from app.services.transcription import (
     TranscriptionError,
@@ -192,6 +193,28 @@ def test_transcribe_audio_happy_path(monkeypatch, tmp_path):
     assert calls[1][0] == "/fake/whisper-cli"
     assert calls[1][calls[1].index("-l") + 1] == "ja"
     assert "-pp" in calls[1]
+
+
+def test_transcribe_audio_defaults_to_gpu_and_omits_no_gpu_flag(monkeypatch, tmp_path):
+    _stub_model(monkeypatch, tmp_path)
+    calls = []
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr("app.services.transcription.subprocess.Popen", _make_fake_popen(calls, _whisper_json_fixture()))
+
+    transcribe_audio("/fake/input.mp3", language="ja")
+
+    assert "-ng" not in calls[1]
+
+
+def test_transcribe_audio_cpu_device_passes_no_gpu_flag(monkeypatch, tmp_path):
+    _stub_model(monkeypatch, tmp_path)
+    calls = []
+    monkeypatch.setattr("app.services.transcription.subprocess.run", _make_fake_afconvert_run(calls))
+    monkeypatch.setattr("app.services.transcription.subprocess.Popen", _make_fake_popen(calls, _whisper_json_fixture()))
+
+    transcribe_audio("/fake/input.mp3", language="ja", compute_device=ComputeDevice.cpu)
+
+    assert "-ng" in calls[1]
 
 
 def test_transcribe_audio_language_none_passes_auto(monkeypatch, tmp_path):

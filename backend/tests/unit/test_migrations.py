@@ -44,6 +44,26 @@ def _create_v1_profile_table(db_path) -> None:
         conn.close()
 
 
+def _create_v8_appsettings_table(db_path) -> None:
+    # Same rationale as _create_v7_podcast_table: appsettings hasn't been
+    # rebuilt since v4, so create_all() would bake compute_device/
+    # cache_transcripts in early and the v9 ADD COLUMN step would collide.
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE appsettings (
+                id INTEGER NOT NULL,
+                auto_remove VARCHAR(6) NOT NULL,
+                PRIMARY KEY (id)
+            )
+            """
+        )
+        conn.execute("INSERT INTO appsettings (id, auto_remove) VALUES (1, 'never')")
+    finally:
+        conn.close()
+
+
 def _create_v7_podcast_table(db_path) -> None:
     # Same rationale as _create_v1_profile_table: podcast hasn't been rebuilt
     # since v3 (unlike profile, rebuilt at v7), so create_all() would bake
@@ -302,9 +322,12 @@ def test_v4_podcast_table_gains_local_directory_path_column(tmp_path):
     # after #85 (kind-aware) and #96 (appsettings), stamped at version 4.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    other_v4_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("podcast", "profile")]
+    other_v4_tables = [
+        t for name, t in SQLModel.metadata.tables.items() if name not in ("podcast", "profile", "appsettings")
+    ]
     SQLModel.metadata.create_all(engine, tables=other_v4_tables)
     _create_v1_profile_table(db_path)
+    _create_v8_appsettings_table(db_path)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute(
         """
@@ -363,9 +386,12 @@ def test_v5_profile_table_gains_last_used_at_column(tmp_path):
     # before last_used_at existed, with one real row in it, stamped at version 5.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    other_v5_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("profile", "podcast")]
+    other_v5_tables = [
+        t for name, t in SQLModel.metadata.tables.items() if name not in ("profile", "podcast", "appsettings")
+    ]
     SQLModel.metadata.create_all(engine, tables=other_v5_tables)
     _create_v7_podcast_table(db_path)
+    _create_v8_appsettings_table(db_path)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute(
         """
@@ -405,9 +431,12 @@ def test_v6_profile_direction_becomes_learning_language(tmp_path):
     # (en_ja -> ja, ja_en -> en) and drop the old column entirely.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    other_v6_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("profile", "podcast")]
+    other_v6_tables = [
+        t for name, t in SQLModel.metadata.tables.items() if name not in ("profile", "podcast", "appsettings")
+    ]
     SQLModel.metadata.create_all(engine, tables=other_v6_tables)
     _create_v7_podcast_table(db_path)
+    _create_v8_appsettings_table(db_path)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute(
         """
@@ -449,8 +478,9 @@ def test_v7_podcast_table_gains_locale_tag_column(tmp_path):
     # column yet. A plain ADD COLUMN should backfill NULL for existing rows.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    other_v7_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "podcast"]
+    other_v7_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("podcast", "appsettings")]
     SQLModel.metadata.create_all(engine, tables=other_v7_tables)
+    _create_v8_appsettings_table(db_path)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute(
         """
@@ -489,6 +519,31 @@ def test_v7_podcast_table_gains_locale_tag_column(tmp_path):
     assert "locale_tag" in columns
     row = conn.execute("SELECT id, locale_tag FROM podcast").fetchone()
     assert row == (1, None)
+    conn.close()
+
+
+def test_v8_appsettings_table_gains_compute_device_and_cache_columns(tmp_path):
+    # Simulates a real pre-#121 install: the appsettings schema that shipped
+    # with only auto_remove, stamped at version 8 — no compute_device/
+    # cache_transcripts columns yet. A plain ADD COLUMN should backfill the
+    # documented defaults for the existing row.
+    db_path = tmp_path / "kotoba.db"
+    engine = _engine_for(db_path)
+    other_v8_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "appsettings"]
+    SQLModel.metadata.create_all(engine, tables=other_v8_tables)
+    _create_v8_appsettings_table(db_path)
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    conn.execute("PRAGMA user_version = 8")
+    conn.close()
+
+    migrations.run(db_path, engine)
+
+    assert _user_version(db_path) == migrations.CURRENT_VERSION
+    conn = sqlite3.connect(db_path)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(appsettings)")}
+    assert {"compute_device", "cache_transcripts"} <= columns
+    row = conn.execute("SELECT id, auto_remove, compute_device, cache_transcripts FROM appsettings").fetchone()
+    assert row == (1, "never", "gpu", 1)
     conn.close()
 
 

@@ -70,6 +70,12 @@ describe('Episodes', () => {
     localStorage.setItem('kotoba.profileId', '1');
     vi.mocked(api.listProfiles).mockResolvedValue([profile]);
     vi.mocked(api.listSubscriptions).mockResolvedValue([]);
+    vi.mocked(api.getSettings).mockResolvedValue({
+      auto_remove: 'never',
+      storage_root: '/tmp/storage',
+      compute_device: 'gpu',
+      cache_transcripts: true,
+    });
   });
 
   it('re-fetches from the API when the filter changes', async () => {

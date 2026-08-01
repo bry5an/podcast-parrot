@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useProfiles } from '../state/ProfileContext';
 import { api } from '../lib/api';
-import type { AutoRemovePolicy, StorageStats } from '../lib/types';
+import type { AutoRemovePolicy, ComputeDevice, StorageStats, WhisperModel, WhisperModelName, WhisperModelStatus } from '../lib/types';
+import { DOWNLOAD_ERROR_MESSAGES } from '../lib/downloadErrors';
 import { isTauri } from '../lib/tauri';
 import {
   DEFAULT_SEEK_STEP_SECONDS,
@@ -29,7 +30,6 @@ import type { Theme } from '../lib/theme';
 
 type SectionId = 'playback' | 'transcription' | 'reading-aids' | 'library-storage' | 'appearance';
 type SeekStep = '3s' | '5s' | '10s';
-type ComputeDevice = 'cpu' | 'gpu';
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 MB';
@@ -113,13 +113,17 @@ const KEYBINDINGS: { id: KeybindingAction | 'seekModifier'; icon: ReactNode; lab
   { id: 'cycleSpeed', icon: <path d="M10 4a6 6 0 1 0 6 6M10 4V2M10 8l3-3" />, label: 'Cycle speed', description: 'Step playback rate' },
 ];
 
-const WHISPER_MODELS: { id: string; name: string; size: string; installed: boolean; speed: string; quality: string; description: string }[] = [
-  { id: 'tiny', name: 'Tiny', size: '75 MB', installed: true, speed: '~8× realtime', quality: 'basic', description: 'Fastest. Rough drafts, quick checks.' },
-  { id: 'base', name: 'Base', size: '142 MB', installed: true, speed: '~5× realtime', quality: 'fair', description: 'Good speed, usable for clear studio audio.' },
-  { id: 'small', name: 'Small', size: '466 MB', installed: true, speed: '~2× realtime', quality: 'good', description: 'Balanced — recommended for most podcasts.' },
-  { id: 'medium', name: 'Medium', size: '1.5 GB', installed: false, speed: '~1× realtime', quality: 'high', description: 'High accuracy on fast or noisy speech.' },
-  { id: 'large-v3', name: 'Large v3', size: '3.1 GB', installed: false, speed: '~0.5× realtime', quality: 'best', description: 'Best accuracy. Slow without a strong GPU.' },
-];
+const WHISPER_MODEL_BLURBS: Record<WhisperModelName, string> = {
+  tiny: 'Fastest, least accurate — noticeably weak on Japanese.',
+  base: 'Good speed, usable for clear studio audio.',
+  small: 'Most accurate, largest download — recommended for most podcasts.',
+};
+
+function formatModelSize(bytes: number): string {
+  const mb = bytes / 1_000_000;
+  if (mb >= 1000) return `${(mb / 1000).toFixed(1)} GB`;
+  return `${Math.round(mb)} MB`;
+}
 
 const SEEK_STEP_SECONDS: Record<SeekStep, number> = { '3s': 3, '5s': 5, '10s': 10 };
 const SECONDS_TO_SEEK_STEP: Record<number, SeekStep> = { 3: '3s', 5: '5s', 10: '10s' };
@@ -271,7 +275,11 @@ export function Settings() {
     saveTextSize(value);
   };
 
-  const [selectedModel, setSelectedModel] = useState('small');
+  const [models, setModels] = useState<WhisperModel[]>([]);
+  const [activeDownload, setActiveDownload] = useState<WhisperModelName | null>(null);
+  const [modelStatus, setModelStatus] = useState<WhisperModelStatus | null>(null);
+  const modelPollTimer = useRef<number | null>(null);
+
   const [computeDevice, setComputeDevice] = useState<ComputeDevice>('gpu');
   const [cacheTranscripts, setCacheTranscripts] = useState(true);
 
@@ -296,9 +304,57 @@ export function Settings() {
       .then((s) => {
         setAutoRemove(s.auto_remove);
         setStorageRoot(s.storage_root);
+        setComputeDevice(s.compute_device);
+        setCacheTranscripts(s.cache_transcripts);
       })
       .catch(() => setStorageError('Could not load storage settings'));
   }, []);
+
+  useEffect(() => {
+    api.listModels().then(setModels).catch(() => setStorageError('Could not load Whisper models'));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (modelPollTimer.current) window.clearInterval(modelPollTimer.current);
+    };
+  }, []);
+
+  const selectModel = async (name: WhisperModelName) => {
+    setActiveDownload(name);
+    setModelStatus(null);
+    await api.downloadModel(name);
+    modelPollTimer.current = window.setInterval(async () => {
+      const next = await api.getModelStatus(name);
+      setModelStatus(next);
+      if (next.state === 'installed' || next.state === 'failed') {
+        if (modelPollTimer.current) window.clearInterval(modelPollTimer.current);
+        modelPollTimer.current = null;
+        if (next.state === 'installed') {
+          api.listModels().then(setModels).catch(() => {});
+        }
+      }
+    }, 800);
+  };
+
+  const handleComputeDeviceChange = (value: ComputeDevice) => {
+    const previous = computeDevice;
+    setComputeDevice(value);
+    api.updateSettings({ compute_device: value }).catch(() => {
+      setComputeDevice(previous);
+      setStorageError('Could not save compute device setting');
+    });
+  };
+
+  const handleCacheTranscriptsChange = () => {
+    const previous = cacheTranscripts;
+    const next = !previous;
+    setCacheTranscripts(next);
+    api.updateSettings({ cache_transcripts: next }).catch(() => {
+      setCacheTranscripts(previous);
+      setStorageError('Could not save cache-transcripts setting');
+    });
+  };
 
   useEffect(() => {
     if (!furiganaInitRef.current && currentProfile) {
@@ -475,38 +531,66 @@ export function Settings() {
           subtitle="When an episode has no published transcript, Kotoba generates one locally with Whisper. Larger models are more accurate but slower."
         >
           <div style={styles.card}>
-            {WHISPER_MODELS.map((m) => {
-              const selected = selectedModel === m.id;
+            {models.map((m) => {
+              const isActiveDownload = activeDownload === m.name;
+              const downloading = isActiveDownload && (modelStatus?.state === 'downloading' || modelStatus?.state === 'verifying');
+              const failed = isActiveDownload && modelStatus?.state === 'failed';
               return (
                 <button
-                  key={m.id}
+                  key={m.name}
                   type="button"
-                  aria-pressed={selected}
-                  onClick={() => setSelectedModel(m.id)}
-                  style={{ ...styles.modelCard, ...(selected ? styles.modelCardSelected : {}) }}
+                  aria-pressed={m.active}
+                  disabled={downloading}
+                  onClick={() => selectModel(m.name)}
+                  style={{ ...styles.modelCard, ...(m.active ? styles.modelCardSelected : {}), ...(downloading ? { cursor: 'default' } : {}) }}
                 >
-                  <div style={{ ...styles.radioOuter, ...(selected ? styles.radioOuterSelected : {}) }}>
-                    {selected && <div style={styles.radioInner} />}
+                  <div style={{ ...styles.radioOuter, ...(m.active ? styles.radioOuterSelected : {}) }}>
+                    {m.active && <div style={styles.radioInner} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={styles.rowTitle}>{m.name}</span>
-                      <span style={styles.sizeTag}>{m.size}</span>
+                      <span style={{ ...styles.rowTitle, textTransform: 'capitalize' }}>{m.name}</span>
+                      <span style={styles.sizeTag}>{formatModelSize(m.size_bytes)}</span>
                       {m.installed && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4, font: '500 11px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .5)' }}>
                           <span style={styles.installedDot} /> installed
                         </span>
                       )}
                     </div>
-                    <div style={styles.rowSubtitle}>{m.description}</div>
+                    <div style={styles.rowSubtitle}>{WHISPER_MODEL_BLURBS[m.name]}</div>
+                    {downloading && (
+                      <div style={styles.storageBar}>
+                        <div
+                          style={{
+                            width: `${modelStatus?.bytes_total ? Math.min(100, (modelStatus.bytes_done / modelStatus.bytes_total) * 100) : 0}%`,
+                            background: 'var(--accent)',
+                          }}
+                        />
+                      </div>
+                    )}
+                    {failed && (
+                      <div style={{ font: '400 11px/1.5 IBM Plex Sans', color: 'var(--danger)', marginTop: 4 }}>
+                        {DOWNLOAD_ERROR_MESSAGES[modelStatus?.error ?? 'unknown']}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ textAlign: 'right', flex: 'none' }}>
-                    <div style={{ font: '500 12px/1 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .6)' }}>{m.speed}</div>
-                    <div style={{ font: '400 11px/1.4 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .4)' }}>{m.quality}</div>
+                  <div style={{ textAlign: 'right', flex: 'none', font: '600 11.5px/1 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .55)' }}>
+                    {m.active
+                      ? 'Active'
+                      : downloading
+                        ? modelStatus?.state === 'verifying'
+                          ? 'Verifying…'
+                          : 'Downloading…'
+                        : m.installed
+                          ? 'Use'
+                          : 'Download'}
                   </div>
                 </button>
               );
             })}
+            {models.length === 0 && (
+              <div style={{ padding: '16px 18px', font: '400 12px/1.5 IBM Plex Sans', color: 'rgb(var(--fg-rgb) / .5)' }}>Loading models…</div>
+            )}
           </div>
 
           <div style={styles.card}>
@@ -520,14 +604,14 @@ export function Settings() {
                     { value: 'gpu' as ComputeDevice, label: 'GPU' },
                   ]}
                   value={computeDevice}
-                  onChange={setComputeDevice}
+                  onChange={handleComputeDeviceChange}
                 />
               }
             />
             <SettingRow
               title="Cache generated transcripts"
               subtitle="Reuse instead of re-transcribing on replay"
-              control={<Toggle checked={cacheTranscripts} onChange={() => setCacheTranscripts((v) => !v)} label="Cache generated transcripts" />}
+              control={<Toggle checked={cacheTranscripts} onChange={handleCacheTranscriptsChange} label="Cache generated transcripts" />}
             />
           </div>
         </Section>
@@ -600,6 +684,11 @@ export function Settings() {
               </div>
               <div style={styles.storageBar}>
                 <div style={{ width: storageStats && storageStats.bytes_used > 0 ? '100%' : '0%', background: 'var(--accent)' }} />
+              </div>
+              <div style={{ font: '400 11.5px/1.5 IBM Plex Mono', color: 'rgb(var(--fg-rgb) / .45)', marginTop: 8 }}>
+                {storageStats
+                  ? `Audio: ${formatBytes(storageStats.bytes_used)} · Transcripts: ${formatBytes(storageStats.transcript_bytes)}`
+                  : 'Loading…'}
               </div>
             </div>
           </div>

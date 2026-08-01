@@ -143,11 +143,18 @@ class AutoRemovePolicy(str, Enum):
     thirty_days = "30d"
 
 
+class ComputeDevice(str, Enum):
+    cpu = "cpu"
+    gpu = "gpu"
+
+
 class AppSettings(SQLModel, table=True):
     # Single-row table: id is always 1. No per-profile concept here — storage
     # and auto-remove are app-wide, not per learner profile.
     id: int | None = Field(default=1, primary_key=True)
     auto_remove: AutoRemovePolicy = Field(default=AutoRemovePolicy.never)
+    compute_device: ComputeDevice = Field(default=ComputeDevice.gpu)
+    cache_transcripts: bool = Field(default=True)
 
 
 class SavedSentence(SQLModel, table=True):

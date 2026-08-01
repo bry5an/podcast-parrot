@@ -4,7 +4,17 @@ from pathlib import Path
 import httpx
 from sqlmodel import Session, select
 
-from app.models import Episode, Podcast, PodcastKind, Sentence, Transcript, TranscriptSource, TranscriptStatus
+from app.models import (
+    AppSettings,
+    ComputeDevice,
+    Episode,
+    Podcast,
+    PodcastKind,
+    Sentence,
+    Transcript,
+    TranscriptSource,
+    TranscriptStatus,
+)
 from app.services import youtube
 from app.services.furigana import build_segments
 from app.services.rss import TIMED_TRANSCRIPT_FORMATS, classify_transcript_format
@@ -177,16 +187,20 @@ def ingest_transcript(session: Session, episode: Episode, audio_path: Path | Non
         session.commit()
 
 
-def _transcribe_with_progress(episode_id: int, audio_path: Path) -> tuple[list[Cue], str]:
+def _transcribe_with_progress(
+    episode_id: int, audio_path: Path, compute_device: ComputeDevice
+) -> tuple[list[Cue], str]:
     try:
-        return transcribe_audio(str(audio_path), episode_id=episode_id)
+        return transcribe_audio(str(audio_path), episode_id=episode_id, compute_device=compute_device)
     finally:
         clear_progress(episode_id)
 
 
 def _transcribe_with_asr(session: Session, episode: Episode, audio_path: Path) -> Transcript | None:
+    settings = session.get(AppSettings, 1)
+    compute_device = settings.compute_device if settings else ComputeDevice.gpu
     try:
-        cues, detected_language = _transcribe_with_progress(episode.id, audio_path)
+        cues, detected_language = _transcribe_with_progress(episode.id, audio_path, compute_device)
     except WhisperModelNotFoundError:
         episode.transcript_status = TranscriptStatus.queued
         session.add(episode)
