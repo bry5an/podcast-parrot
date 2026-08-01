@@ -10,6 +10,7 @@ class LearningLanguage(str, Enum):
     en = "en"
     es = "es"
     fr = "fr"
+    ko = "ko"
 
 
 class Profile(SQLModel, table=True):

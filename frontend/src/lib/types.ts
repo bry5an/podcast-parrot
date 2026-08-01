@@ -1,4 +1,4 @@
-export type LearningLanguage = 'ja' | 'en' | 'es' | 'fr';
+export type LearningLanguage = 'ja' | 'en' | 'es' | 'fr' | 'ko';
 
 export interface Profile {
   id: number;

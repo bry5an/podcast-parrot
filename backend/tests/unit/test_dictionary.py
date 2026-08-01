@@ -50,6 +50,17 @@ _WIKTIONARY_FR_BOOK = {
     ]
 }
 
+_WIKTIONARY_KO_BOOK = {
+    "ko": [
+        {
+            "partOfSpeech": "Interjection",
+            "definitions": [
+                {"definition": "<a>hello</a>, hey"},
+            ],
+        }
+    ]
+}
+
 _JISHO_BOOK = {
     "data": [
         {
@@ -116,6 +127,19 @@ def test_lookup_french_word_uses_wiktionary_fr_section(monkeypatch):
     assert entry.word == "bonjour"
     assert [s.model_dump() for s in entry.senses] == [
         {"part_of_speech": "Noun", "definitions": ["greetings; hello (general salutation)"]}
+    ]
+
+
+def test_lookup_korean_word_uses_wiktionary_ko_section(monkeypatch):
+    monkeypatch.setattr("app.services.dictionary.httpx.get", lambda *a, **k: _FakeResponse(_WIKTIONARY_KO_BOOK))
+
+    entry = lookup_word("안녕", "ko")
+
+    assert entry is not None
+    assert entry.word == "안녕"
+    assert entry.reading is None
+    assert [s.model_dump() for s in entry.senses] == [
+        {"part_of_speech": "Interjection", "definitions": ["hello, hey"]}
     ]
 
 

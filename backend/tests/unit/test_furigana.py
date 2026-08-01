@@ -40,6 +40,14 @@ def test_accented_spanish_and_french_words_tokenize_as_single_segments():
     assert words == ["Cómo", "estás", "C'est", "très", "bien"]
 
 
+def test_korean_words_tokenize_as_single_segments():
+    text = "안녕하세요, 오늘 날씨가 좋네요!"
+    segments = build_segments(text, "ko")
+    assert "".join(s["base"] for s in segments) == text
+    words = [s["base"] for s in segments if re.match(r"^[^\W\d_]+(?:['’][^\W\d_]+)*$", s["base"])]
+    assert words == ["안녕하세요", "오늘", "날씨가", "좋네요"]
+
+
 def test_japanese_text_with_non_japanese_language_is_not_segmented_by_mecab():
     # The `language` argument drives the tokenization strategy, not the text
     # content itself — Japanese text tagged as English gets the word-boundary
