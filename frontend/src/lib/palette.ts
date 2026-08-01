@@ -21,4 +21,5 @@ export const LANGUAGE_META: Record<
   en: { flag: '🇺🇸', title: 'English', sub: 'English' },
   es: { flag: '🇪🇸', title: 'Spanish', sub: 'Español' },
   fr: { flag: '🇫🇷', title: 'French', sub: 'Français' },
+  ko: { flag: '🇰🇷', title: 'Korean', sub: '한국어' },
 };

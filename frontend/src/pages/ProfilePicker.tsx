@@ -192,7 +192,7 @@ export function ProfilePicker() {
           <div>
             <label style={styles.label}>What are you learning?</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {(['ja', 'en', 'es', 'fr'] as LearningLanguage[]).map((lang) => {
+              {(['ja', 'en', 'es', 'fr', 'ko'] as LearningLanguage[]).map((lang) => {
                 const m = LANGUAGE_META[lang];
                 const sel = learningLanguage === lang;
                 return (

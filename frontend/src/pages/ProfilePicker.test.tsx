@@ -193,7 +193,7 @@ describe('ProfilePicker', () => {
     expect(api.listPacks).not.toHaveBeenCalled();
   });
 
-  it('never prompts for the Japanese pack and hides the furigana toggle for a Spanish or French profile', async () => {
+  it('never prompts for the Japanese pack and hides the furigana toggle for a Spanish, French, or Korean profile', async () => {
     renderPicker();
 
     await userEvent.click(await screen.findByText('Add learner'));
@@ -203,6 +203,9 @@ describe('ProfilePicker', () => {
     expect(screen.queryByText('Show furigana over kanji')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByText('🇫🇷').closest('button')!);
+    expect(screen.queryByText('Show furigana over kanji')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('🇰🇷').closest('button')!);
     expect(screen.queryByText('Show furigana over kanji')).not.toBeInTheDocument();
   });
 
