@@ -1,11 +1,12 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Library } from './Library';
 import { ProfileProvider } from '../state/ProfileContext';
+import { ToastProvider } from '../state/ToastContext';
 import { api } from '../lib/api';
-import type { Profile } from '../lib/types';
+import type { Podcast, Profile } from '../lib/types';
 
 vi.mock('../lib/api');
 
@@ -18,15 +19,31 @@ const profile: Profile = {
   created_at: '2026-01-01T00:00:00Z',
 };
 
+const podcast: Podcast = {
+  id: 7,
+  rss_url: 'https://example.com/feed.xml',
+  youtube_playlist_url: null,
+  kind: 'rss',
+  title: 'Nihongo News',
+  description: 'Daily Japanese news',
+  artwork_url: null,
+  language: 'ja',
+  level_tag: null,
+  source: 'curated',
+  subscribed: true,
+};
+
 function renderLibrary() {
   return render(
     <MemoryRouter initialEntries={['/library']}>
       <ProfileProvider>
-        <Routes>
-          <Route path="/library" element={<Library />} />
-          <Route path="/settings" element={<div data-testid="settings-stub" />} />
-          <Route path="/" element={<div data-testid="picker-stub" />} />
-        </Routes>
+        <ToastProvider>
+          <Routes>
+            <Route path="/library" element={<Library />} />
+            <Route path="/settings" element={<div data-testid="settings-stub" />} />
+            <Route path="/" element={<div data-testid="picker-stub" />} />
+          </Routes>
+        </ToastProvider>
       </ProfileProvider>
     </MemoryRouter>,
   );
@@ -63,5 +80,36 @@ describe('Library profile menu', () => {
     await userEvent.click(screen.getByRole('button', { name: /Switch profile/ }));
     expect(await screen.findByTestId('picker-stub')).toBeInTheDocument();
     expect(localStorage.getItem('kotoba.profileId')).toBeNull();
+  });
+});
+
+describe('Library delete feed', () => {
+  beforeEach(() => {
+    localStorage.setItem('kotoba.profileId', '1');
+    vi.mocked(api.listProfiles).mockResolvedValue([profile]);
+    vi.mocked(api.listSubscriptions).mockResolvedValue([podcast]);
+  });
+
+  it('does not call deleteFeed when the confirmation is canceled', async () => {
+    renderLibrary();
+    await userEvent.click(await screen.findByTitle('Delete feed'));
+    const dialog = await screen.findByRole('alertdialog');
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(api.deleteFeed).not.toHaveBeenCalled();
+  });
+
+  it('calls deleteFeed and refreshes the list on confirm', async () => {
+    vi.mocked(api.deleteFeed).mockResolvedValue(undefined);
+    renderLibrary();
+    await userEvent.click(await screen.findByTitle('Delete feed'));
+    const dialog = await screen.findByRole('alertdialog');
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete feed' }));
+    expect(api.deleteFeed).toHaveBeenCalledWith(1, 7);
+    expect(await screen.findByText(/Deleted/)).toBeInTheDocument();
+    const callsAfterDelete = vi.mocked(api.listSubscriptions).mock.calls.length;
+    expect(callsAfterDelete).toBeGreaterThan(1);
   });
 });

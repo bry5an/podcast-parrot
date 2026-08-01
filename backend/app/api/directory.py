@@ -3,7 +3,7 @@ from sqlmodel import Session, SQLModel, select
 
 from app.db import get_session
 from app.models import Podcast, PodcastKind, PodcastSource, Profile, Subscription
-from app.services import youtube
+from app.services import podcasts, youtube
 from app.services.rss import FeedFetchError, fetch_podcast_metadata
 
 router = APIRouter(prefix="/api", tags=["directory"])
@@ -161,3 +161,22 @@ def unsubscribe(profile_id: int, podcast_id: int, session: Session = Depends(get
         raise HTTPException(status_code=404, detail="Subscription not found")
     session.delete(existing)
     session.commit()
+
+
+@router.delete("/profiles/{profile_id}/podcasts/{podcast_id}/feed", status_code=204)
+def delete_feed(profile_id: int, podcast_id: int, session: Session = Depends(get_session)):
+    if not session.get(Profile, profile_id):
+        raise HTTPException(status_code=404, detail="Profile not found")
+    podcast = session.get(Podcast, podcast_id)
+    if not podcast:
+        raise HTTPException(status_code=404, detail="Podcast not found")
+
+    other_subscribers = session.exec(
+        select(Subscription).where(
+            Subscription.podcast_id == podcast_id, Subscription.profile_id != profile_id
+        )
+    ).first()
+    if other_subscribers:
+        raise HTTPException(status_code=409, detail="This feed is still followed by another profile")
+
+    podcasts.delete_feed(session, podcast)
