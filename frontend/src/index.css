@@ -2,10 +2,52 @@
   box-sizing: border-box;
 }
 
+:root {
+  --bg-body: #e8e4dc;
+  --bg-page: #fbfaf7;
+  --bg-surface: #ffffff;
+  --bg-hover: rgb(32 30 26 / 0.06);
+  --fg-rgb: 32 30 26;
+  --fg: #211f1b;
+  --accent: oklch(0.55 0.055 195);
+  --accent-strong: oklch(0.42 0.06 195);
+  --accent-soft: oklch(0.55 0.055 195 / 0.08);
+  --danger: oklch(0.5 0.15 30);
+  --danger-soft: oklch(0.5 0.15 30 / 0.08);
+  --danger-border: oklch(0.5 0.15 30 / 0.25);
+  --link: oklch(0.5 0.06 235);
+}
+
+:root[data-theme='light'] {
+  --bg-body: #f2f2f3;
+  --bg-page: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-hover: rgb(26 26 26 / 0.06);
+  --fg-rgb: 26 26 26;
+  --fg: #1a1a1a;
+}
+
+/* Catppuccin Mocha: https://github.com/catppuccin/catppuccin/blob/main/docs/style-guide.md */
+:root[data-theme='dark'] {
+  --bg-body: #11111b; /* Crust */
+  --bg-page: #1e1e2e; /* Base */
+  --bg-surface: #313244; /* Surface0 */
+  --bg-hover: rgb(205 214 244 / 0.08);
+  --fg-rgb: 205 214 244; /* Text */
+  --fg: #cdd6f4; /* Text */
+  --accent: #94e2d5; /* Teal */
+  --accent-strong: #74c7ec; /* Sapphire */
+  --accent-soft: rgb(148 226 213 / 0.12);
+  --danger: #f38ba8; /* Red */
+  --danger-soft: rgb(243 139 168 / 0.1);
+  --danger-border: rgb(243 139 168 / 0.3);
+  --link: #89b4fa; /* Blue */
+}
+
 body {
   margin: 0;
-  background: #e8e4dc;
-  color: #211f1b;
+  background: var(--bg-body);
+  color: var(--fg);
   font-family: 'IBM Plex Sans', 'IBM Plex Sans JP', system-ui, sans-serif;
 }
 
@@ -20,7 +62,7 @@ ruby {
 rt {
   font-size: 0.5em;
   font-weight: 400;
-  color: rgba(32, 30, 26, 0.5);
+  color: rgb(var(--fg-rgb) / 0.5);
   user-select: none;
   line-height: 1;
 }
@@ -30,7 +72,7 @@ button {
 }
 
 a {
-  color: oklch(0.5 0.06 235);
+  color: var(--link);
 }
 
 @keyframes spin {
