@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Settings } from './Settings';
 import { ProfileProvider } from '../state/ProfileContext';
 import { api } from '../lib/api';
-import { loadKeymap, loadSeekStepSeconds } from '../lib/keybindings';
+import { loadAutoAdvance, loadKeymap, loadPlaybackSpeed, loadSeekStepSeconds } from '../lib/keybindings';
+import { loadDimInactiveLines, loadShowRomaji } from '../lib/readingAids';
 import type { Profile } from '../lib/types';
 
 vi.mock('../lib/api');
@@ -39,6 +40,7 @@ describe('Settings', () => {
     vi.mocked(api.getStorageStats).mockResolvedValue({ bytes_used: 0, episode_count: 0, storage_root: '/tmp/storage' });
     vi.mocked(api.getSettings).mockResolvedValue({ auto_remove: 'never', storage_root: '/tmp/storage' });
     vi.mocked(api.updateSettings).mockResolvedValue({ auto_remove: 'never', storage_root: '/tmp/storage' });
+    vi.mocked(api.updateProfile).mockResolvedValue({ ...profile, show_furigana: false });
   });
 
   it('renders all five sections once a profile is loaded', async () => {
@@ -72,7 +74,7 @@ describe('Settings', () => {
     expect(playbackNav).not.toHaveAttribute('aria-current');
   });
 
-  it('toggles a segmented control selection on click', async () => {
+  it('toggles a segmented control selection on click and persists it', async () => {
     localStorage.setItem('kotoba.profileId', '1');
     renderSettings();
     await screen.findByRole('heading', { name: 'Playback & keybindings' });
@@ -84,9 +86,10 @@ describe('Settings', () => {
     await userEvent.click(fasterSpeed);
     expect(fasterSpeed).toHaveAttribute('aria-pressed', 'true');
     expect(defaultSpeed).toHaveAttribute('aria-pressed', 'false');
+    expect(loadPlaybackSpeed()).toBe('1.25x');
   });
 
-  it('flips a toggle switch on click', async () => {
+  it('flips a toggle switch on click and persists it', async () => {
     localStorage.setItem('kotoba.profileId', '1');
     renderSettings();
     await screen.findByRole('heading', { name: 'Playback & keybindings' });
@@ -96,6 +99,7 @@ describe('Settings', () => {
 
     await userEvent.click(autoAdvance);
     expect(autoAdvance).toHaveAttribute('aria-checked', 'false');
+    expect(loadAutoAdvance()).toBe(false);
   });
 
   it('selects a different Whisper model card on click', async () => {
@@ -172,6 +176,30 @@ describe('Settings', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '10s' }));
     expect(loadSeekStepSeconds()).toBe(10);
+  });
+
+  it('persists the furigana toggle via the API', async () => {
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Reading aids' });
+
+    const furigana = screen.getByRole('switch', { name: 'Furigana over kanji' });
+    expect(furigana).toHaveAttribute('aria-checked', 'true');
+
+    await userEvent.click(furigana);
+    expect(api.updateProfile).toHaveBeenCalledWith(1, { show_furigana: false });
+  });
+
+  it('persists the romaji and dim-inactive toggles to localStorage', async () => {
+    localStorage.setItem('kotoba.profileId', '1');
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Reading aids' });
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Romaji fallback' }));
+    expect(loadShowRomaji()).toBe(true);
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Dim inactive lines' }));
+    expect(loadDimInactiveLines()).toBe(false);
   });
 
   it('renders real storage usage and download location from the API', async () => {
