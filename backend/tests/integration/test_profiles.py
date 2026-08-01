@@ -46,6 +46,17 @@ def test_update_profile_partial(client):
     assert body["name"] == "Kenji"  # untouched fields survive a partial update
 
 
+def test_update_profile_last_used_at(client):
+    created = client.post("/api/profiles", json={"name": "Kenji"}).json()
+    assert created["last_used_at"] is None
+
+    response = client.patch(f"/api/profiles/{created['id']}", json={"last_used_at": "2026-07-31T12:00:00"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["last_used_at"] == "2026-07-31T12:00:00"
+    assert body["name"] == "Kenji"  # untouched fields survive a partial update
+
+
 def test_update_profile_missing_returns_404(client):
     response = client.patch("/api/profiles/999", json={"name": "Nope"})
     assert response.status_code == 404

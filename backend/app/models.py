@@ -17,6 +17,7 @@ class Profile(SQLModel, table=True):
     direction: Direction = Field(default=Direction.en_ja)
     show_furigana: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_used_at: datetime | None = Field(default=None)
 
 
 class PodcastSource(str, Enum):

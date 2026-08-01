@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProfilePicker } from './ProfilePicker';
 import { ProfileProvider } from '../state/ProfileContext';
@@ -30,9 +30,12 @@ vi.mock('../lib/api');
 
 function renderPicker() {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={['/']}>
       <ProfileProvider>
-        <ProfilePicker />
+        <Routes>
+          <Route path="/" element={<ProfilePicker />} />
+          <Route path="/library" element={<div>Library page</div>} />
+        </Routes>
       </ProfileProvider>
     </MemoryRouter>,
   );
@@ -45,6 +48,7 @@ const existingProfile: Profile = {
   direction: 'en_ja',
   show_furigana: true,
   created_at: '2026-01-01T00:00:00Z',
+  last_used_at: null,
 };
 
 describe('ProfilePicker', () => {
@@ -57,6 +61,7 @@ describe('ProfilePicker', () => {
       { name: 'small', size_bytes: 1, installed: false, active: false },
     ]);
     vi.mocked(api.listPacks).mockResolvedValue([{ name: 'japanese', download_size_bytes: 1, installed: true }]);
+    vi.mocked(api.updateProfile).mockResolvedValue(existingProfile);
     localStorage.setItem('kotoba.asrSetupSeen', '1');
   });
 
@@ -70,6 +75,31 @@ describe('ProfilePicker', () => {
 
     expect(screen.getByText('Create a learner')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('e.g. Kenji')).toBeInTheDocument();
+  });
+
+  it('redirects straight to /library when the stored profile id matches an existing profile', async () => {
+    vi.mocked(api.listProfiles).mockResolvedValue([existingProfile]);
+    localStorage.setItem('kotoba.profileId', String(existingProfile.id));
+    renderPicker();
+
+    expect(await screen.findByText('Library page')).toBeInTheDocument();
+    expect(screen.queryByText('Choose a profile')).not.toBeInTheDocument();
+  });
+
+  it('redirects straight to /library using the last-used profile when no id is stored', async () => {
+    const otherProfile: Profile = { ...existingProfile, id: 2, name: 'Aoi', last_used_at: '2026-01-05T00:00:00Z' };
+    vi.mocked(api.listProfiles).mockResolvedValue([existingProfile, otherProfile]);
+    renderPicker();
+
+    expect(await screen.findByText('Library page')).toBeInTheDocument();
+    expect(screen.queryByText('Choose a profile')).not.toBeInTheDocument();
+  });
+
+  it('shows the picker when no profile has ever been used and none is stored', async () => {
+    vi.mocked(api.listProfiles).mockResolvedValue([existingProfile]);
+    renderPicker();
+
+    expect(await screen.findByText('Choose a profile')).toBeInTheDocument();
   });
 
   it('shows a streak subline for a profile with an active streak, and none for a zero streak', async () => {
@@ -93,6 +123,7 @@ describe('ProfilePicker', () => {
       direction: 'en_ja',
       show_furigana: true,
       created_at: '2026-01-02T00:00:00Z',
+      last_used_at: null,
     };
     vi.mocked(api.createProfile).mockResolvedValue(created);
     renderPicker();
@@ -123,6 +154,7 @@ describe('ProfilePicker', () => {
       direction: 'en_ja',
       show_furigana: true,
       created_at: '2026-01-02T00:00:00Z',
+      last_used_at: null,
     };
     vi.mocked(api.createProfile).mockResolvedValue(created);
     vi.mocked(api.listPacks).mockResolvedValue([{ name: 'japanese', download_size_bytes: 47_000_000, installed: false }]);
@@ -144,6 +176,7 @@ describe('ProfilePicker', () => {
       direction: 'ja_en',
       show_furigana: true,
       created_at: '2026-01-02T00:00:00Z',
+      last_used_at: null,
     };
     vi.mocked(api.createProfile).mockResolvedValue(created);
     vi.mocked(api.listPacks).mockResolvedValue([{ name: 'japanese', download_size_bytes: 1, installed: false }]);
@@ -168,6 +201,7 @@ describe('ProfilePicker', () => {
       direction: 'en_ja',
       show_furigana: true,
       created_at: '2026-01-02T00:00:00Z',
+      last_used_at: null,
     };
     vi.mocked(api.createProfile).mockResolvedValue(created);
     vi.mocked(api.listPacks).mockResolvedValue([{ name: 'japanese', download_size_bytes: 47_000_000, installed: false }]);

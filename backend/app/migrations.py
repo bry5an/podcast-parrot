@@ -9,7 +9,7 @@ from sqlmodel import SQLModel
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = 5
+CURRENT_VERSION = 6
 
 Migration = Callable[[sqlite3.Connection], None]
 
@@ -97,6 +97,10 @@ def _add_podcast_local_directory_path(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE UNIQUE INDEX ix_podcast_local_directory_path ON podcast (local_directory_path)")
 
 
+def _add_profile_last_used_at(conn: sqlite3.Connection) -> None:
+    conn.execute("ALTER TABLE profile ADD COLUMN last_used_at DATETIME")
+
+
 # Keyed by the version each step migrates *to*. Version 1 is exactly the schema
 # `SQLModel.metadata.create_all()` produces, so it has no step here — both a
 # brand-new database and a pre-migration one are simply stamped at that version.
@@ -105,6 +109,7 @@ MIGRATIONS: dict[int, Migration] = {
     3: _make_podcast_kind_aware,
     4: _add_app_settings_table,
     5: _add_podcast_local_directory_path,
+    6: _add_profile_last_used_at,
 }
 
 
