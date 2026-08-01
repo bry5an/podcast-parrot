@@ -10,7 +10,7 @@ import type { Direction } from '../lib/types';
 const initial = (name: string) => (name.trim()[0] || '?').toUpperCase();
 
 export function ProfilePicker() {
-  const { profiles, selectProfile, refreshProfiles } = useProfiles();
+  const { profiles, currentProfile, loading, selectProfile, refreshProfiles } = useProfiles();
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -34,6 +34,12 @@ export function ProfilePicker() {
       if (!models.some((m) => m.installed)) navigate('/setup');
     });
   }, [navigate]);
+
+  useEffect(() => {
+    if (!loading && currentProfile) navigate('/library', { replace: true });
+  }, [loading, currentProfile, navigate]);
+
+  if (loading || currentProfile) return null;
 
   const pick = (id: number) => {
     selectProfile(id);

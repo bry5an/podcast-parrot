@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, SQLModel, select
 
@@ -19,6 +21,7 @@ class ProfileUpdate(SQLModel):
     palette_index: int | None = None
     direction: Direction | None = None
     show_furigana: bool | None = None
+    last_used_at: datetime | None = None
 
 
 @router.get("", response_model=list[Profile])

@@ -17,6 +17,7 @@ const profile: Profile = {
   direction: 'en_ja',
   show_furigana: true,
   created_at: '2026-01-01T00:00:00Z',
+  last_used_at: null,
 };
 
 function renderSettings() {

@@ -19,6 +19,31 @@ def _user_version(db_path) -> int:
         conn.close()
 
 
+def _create_v1_profile_table(db_path) -> None:
+    # SQLModel.metadata always reflects the *current* model, so a table that's
+    # never been rebuilt since v1 (unlike podcast, rebuilt at v3) must be
+    # created with its pre-migration columns by hand here — otherwise
+    # create_all() would bake last_used_at in early and the ADD COLUMN step
+    # would collide with it.
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE profile (
+                id INTEGER NOT NULL,
+                name VARCHAR NOT NULL,
+                palette_index INTEGER NOT NULL,
+                direction VARCHAR(5) NOT NULL,
+                show_furigana BOOLEAN NOT NULL,
+                created_at DATETIME NOT NULL,
+                PRIMARY KEY (id)
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+
 def test_fresh_database_is_created_and_stamped_at_current_version(tmp_path):
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
@@ -34,8 +59,11 @@ def test_pre_migration_database_is_backed_up_and_stamped(tmp_path):
     # that existed at version 1 (no schema had changed yet) but user_version 0.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    v1_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("savedsentence", "appsettings")]
+    v1_tables = [
+        t for name, t in SQLModel.metadata.tables.items() if name not in ("savedsentence", "appsettings", "profile")
+    ]
     SQLModel.metadata.create_all(engine, tables=v1_tables)
+    _create_v1_profile_table(db_path)
     assert _user_version(db_path) == 0
 
     migrations.run(db_path, engine)
@@ -74,8 +102,11 @@ def test_v1_database_gains_a_working_savedsentence_table(tmp_path):
     # migration shipped looks like.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    v1_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("savedsentence", "appsettings")]
+    v1_tables = [
+        t for name, t in SQLModel.metadata.tables.items() if name not in ("savedsentence", "appsettings", "profile")
+    ]
     SQLModel.metadata.create_all(engine, tables=v1_tables)
+    _create_v1_profile_table(db_path)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute("PRAGMA user_version = 1")
     conn.close()
@@ -179,8 +210,11 @@ def test_v2_podcast_table_gains_kind_and_youtube_columns(tmp_path):
     engine = _engine_for(db_path)
     # Stamped at version 2, so savedsentence (added by the version-2 step) already
     # exists; only podcast (rebuilt at version 3) and appsettings (version 4) don't.
-    other_v2_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("podcast", "appsettings")]
+    other_v2_tables = [
+        t for name, t in SQLModel.metadata.tables.items() if name not in ("podcast", "appsettings", "profile")
+    ]
     SQLModel.metadata.create_all(engine, tables=other_v2_tables)
+    _create_v1_profile_table(db_path)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute(
         """
@@ -236,8 +270,9 @@ def test_v4_podcast_table_gains_local_directory_path_column(tmp_path):
     # after #85 (kind-aware) and #96 (appsettings), stamped at version 4.
     db_path = tmp_path / "kotoba.db"
     engine = _engine_for(db_path)
-    other_v4_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "podcast"]
+    other_v4_tables = [t for name, t in SQLModel.metadata.tables.items() if name not in ("podcast", "profile")]
     SQLModel.metadata.create_all(engine, tables=other_v4_tables)
+    _create_v1_profile_table(db_path)
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.execute(
         """
@@ -288,6 +323,45 @@ def test_v4_podcast_table_gains_local_directory_path_column(tmp_path):
             "INSERT INTO podcast (rss_url, local_directory_path, kind, title, description, language, source) "
             "VALUES (NULL, '/Users/kenji/podcasts', 'local_directory', 'Dupe', '', 'ja', 'user_added')"
         )
+    conn.close()
+
+
+def test_v5_profile_table_gains_last_used_at_column(tmp_path):
+    # Simulates a real pre-#115 install: the exact profile schema that shipped
+    # before last_used_at existed, with one real row in it, stamped at version 5.
+    db_path = tmp_path / "kotoba.db"
+    engine = _engine_for(db_path)
+    other_v5_tables = [t for name, t in SQLModel.metadata.tables.items() if name != "profile"]
+    SQLModel.metadata.create_all(engine, tables=other_v5_tables)
+    conn = sqlite3.connect(db_path, isolation_level=None)
+    conn.execute(
+        """
+        CREATE TABLE profile (
+            id INTEGER NOT NULL,
+            name VARCHAR NOT NULL,
+            palette_index INTEGER NOT NULL,
+            direction VARCHAR(5) NOT NULL,
+            show_furigana BOOLEAN NOT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (id)
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO profile (id, name, palette_index, direction, show_furigana, created_at) "
+        "VALUES (1, 'Kenji', 0, 'en_ja', 1, '2024-01-01')"
+    )
+    conn.execute("PRAGMA user_version = 5")
+    conn.close()
+
+    migrations.run(db_path, engine)
+
+    assert _user_version(db_path) == migrations.CURRENT_VERSION
+    conn = sqlite3.connect(db_path)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(profile)")}
+    assert "last_used_at" in columns
+    row = conn.execute("SELECT id, name, last_used_at FROM profile").fetchone()
+    assert row == (1, "Kenji", None)
     conn.close()
 
 

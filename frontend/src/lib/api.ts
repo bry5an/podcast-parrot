@@ -53,7 +53,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  updateProfile: (id: number, payload: Partial<ProfileCreate>) =>
+  updateProfile: (id: number, payload: Partial<ProfileCreate> & { last_used_at?: string }) =>
     request<Profile>(`/api/profiles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
