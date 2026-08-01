@@ -71,6 +71,36 @@ def _build_youtube_transcript(session: Session, episode: Episode, podcast: Podca
     return transcript
 
 
+def _build_local_directory_transcript(session: Session, episode: Episode, podcast: Podcast) -> Transcript | None:
+    # transcript_source_url/type are populated by services.local_dir.scan_episodes
+    # with a sidecar file's absolute path and its extension (srt/vtt/json) — no
+    # separate published check needed since a sidecar's presence already means it's timed.
+    if not episode.transcript_source_url or episode.transcript_source_type not in _PARSERS:
+        return None
+
+    try:
+        content = Path(episode.transcript_source_url).read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    try:
+        cues = _PARSERS[episode.transcript_source_type](content)
+    except (ValueError, KeyError):
+        return None
+    if not cues:
+        return None
+
+    transcript = _persist_cues(session, episode, cues, podcast.language, TranscriptSource.published)
+    if transcript is None:
+        return None
+
+    episode.transcript_status = TranscriptStatus.full
+    session.add(episode)
+    session.commit()
+    session.refresh(transcript)
+    return transcript
+
+
 def build_transcript(session: Session, episode: Episode) -> Transcript | None:
     """Fetch and parse the episode's published transcript on demand, building
     ordered Sentence rows from SRT/VTT/Podcasting-2.0-JSON cues. Untimed
@@ -78,6 +108,8 @@ def build_transcript(session: Session, episode: Episode) -> Transcript | None:
     podcast = session.get(Podcast, episode.podcast_id)
     if podcast and podcast.kind == PodcastKind.youtube:
         return _build_youtube_transcript(session, episode, podcast)
+    if podcast and podcast.kind == PodcastKind.local_directory:
+        return _build_local_directory_transcript(session, episode, podcast)
 
     if not episode.transcript_source_url:
         return None

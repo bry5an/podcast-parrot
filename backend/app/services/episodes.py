@@ -1,8 +1,11 @@
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from sqlmodel import Session, select
 
 from app.models import Episode, Podcast, PodcastKind, TranscriptStatus
+from app.services.local_dir import LocalDirectoryError
+from app.services.local_dir import scan_episodes as scan_local_directory_episodes
 from app.services.rss import TIMED_TRANSCRIPT_FORMATS, FeedFetchError, fetch_episodes
 from app.services.youtube import YoutubeFetchError, fetch_playlist_episodes
 
@@ -34,9 +37,11 @@ def sync_episodes(session: Session, podcast: Podcast) -> None:
     try:
         if podcast.kind == PodcastKind.youtube:
             fetched = fetch_playlist_episodes(podcast.youtube_playlist_url)
+        elif podcast.kind == PodcastKind.local_directory:
+            fetched = scan_local_directory_episodes(Path(podcast.local_directory_path))
         else:
             fetched = fetch_episodes(podcast.rss_url)
-    except (FeedFetchError, YoutubeFetchError):
+    except (FeedFetchError, YoutubeFetchError, LocalDirectoryError):
         return
 
     existing = {

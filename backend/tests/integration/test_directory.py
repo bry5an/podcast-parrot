@@ -154,6 +154,45 @@ def test_add_podcast_from_youtube_invalid_playlist_returns_422(client, monkeypat
     assert response.status_code == 422
 
 
+def test_add_podcast_from_local_directory(client, tmp_path):
+    (tmp_path / "episode1.mp3").write_bytes(b"fake-audio")
+
+    response = client.post("/api/directory/local", json={"directory_path": str(tmp_path)})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["title"] == tmp_path.name
+    assert body["kind"] == "local_directory"
+    assert body["local_directory_path"] == str(tmp_path)
+    assert body["rss_url"] is None
+    assert body["youtube_playlist_url"] is None
+    assert body["source"] == "user_added"
+
+
+def test_add_podcast_from_local_directory_dedupes_existing_path(client, session, tmp_path):
+    (tmp_path / "episode1.mp3").write_bytes(b"fake-audio")
+    _make_podcast(
+        session,
+        rss_url=None,
+        local_directory_path=str(tmp_path),
+        kind="local_directory",
+        title="Existing Folder",
+    )
+
+    response = client.post("/api/directory/local", json={"directory_path": str(tmp_path)})
+    assert response.status_code == 200
+    assert response.json()["title"] == "Existing Folder"
+
+
+def test_add_podcast_from_local_directory_missing_path_returns_422(client, tmp_path):
+    response = client.post("/api/directory/local", json={"directory_path": str(tmp_path / "does-not-exist")})
+    assert response.status_code == 422
+
+
+def test_add_podcast_from_local_directory_empty_directory_returns_422(client, tmp_path):
+    response = client.post("/api/directory/local", json={"directory_path": str(tmp_path)})
+    assert response.status_code == 422
+
+
 def test_list_subscriptions(client, session):
     podcast = _make_podcast(session)
     profile_id = client.post("/api/profiles", json={"name": "Kenji"}).json()["id"]

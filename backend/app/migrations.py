@@ -9,7 +9,7 @@ from sqlmodel import SQLModel
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = 4
+CURRENT_VERSION = 5
 
 Migration = Callable[[sqlite3.Connection], None]
 
@@ -90,6 +90,13 @@ def _add_app_settings_table(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO appsettings (id, auto_remove) VALUES (1, 'never')")
 
 
+def _add_podcast_local_directory_path(conn: sqlite3.Connection) -> None:
+    # Unlike v3's rss_url NOT NULL relaxation, this is a brand-new nullable
+    # column, so a plain ADD COLUMN works — no full table rebuild needed.
+    conn.execute("ALTER TABLE podcast ADD COLUMN local_directory_path VARCHAR")
+    conn.execute("CREATE UNIQUE INDEX ix_podcast_local_directory_path ON podcast (local_directory_path)")
+
+
 # Keyed by the version each step migrates *to*. Version 1 is exactly the schema
 # `SQLModel.metadata.create_all()` produces, so it has no step here — both a
 # brand-new database and a pre-migration one are simply stamped at that version.
@@ -97,6 +104,7 @@ MIGRATIONS: dict[int, Migration] = {
     2: _add_saved_sentence_table,
     3: _make_podcast_kind_aware,
     4: _add_app_settings_table,
+    5: _add_podcast_local_directory_path,
 }
 
 

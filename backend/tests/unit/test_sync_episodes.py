@@ -1,4 +1,6 @@
-from app.models import Episode, Podcast, PodcastKind
+from sqlmodel import select
+
+from app.models import Episode, Podcast, PodcastKind, TranscriptStatus
 from app.services.episodes import sync_episodes
 
 
@@ -81,3 +83,59 @@ def test_sync_episodes_upserts_youtube_entries_as_episodes(session, monkeypatch)
     assert episode.title == "Episode One"
     assert episode.audio_url == "https://www.youtube.com/watch?v=abc123"
     assert episode.duration_seconds == 120
+
+
+def test_sync_episodes_uses_local_directory_scan_for_local_podcast(session, monkeypatch, tmp_path):
+    podcast = _make_podcast(
+        session,
+        rss_url=None,
+        local_directory_path=str(tmp_path),
+        kind=PodcastKind.local_directory,
+    )
+
+    calls = []
+    monkeypatch.setattr(
+        "app.services.episodes.fetch_episodes",
+        lambda url: (_ for _ in ()).throw(AssertionError("should not be called for a local-directory podcast")),
+    )
+    monkeypatch.setattr(
+        "app.services.episodes.scan_local_directory_episodes", lambda path: calls.append(path) or []
+    )
+
+    sync_episodes(session, podcast)
+
+    assert calls == [tmp_path]
+
+
+def test_sync_episodes_upserts_local_directory_entries_as_episodes(session, monkeypatch, tmp_path):
+    podcast = _make_podcast(
+        session,
+        rss_url=None,
+        local_directory_path=str(tmp_path),
+        kind=PodcastKind.local_directory,
+    )
+
+    monkeypatch.setattr(
+        "app.services.episodes.scan_local_directory_episodes",
+        lambda path: [
+            {
+                "guid": "episode1.mp3",
+                "title": "episode1",
+                "pub_date": None,
+                "duration_seconds": None,
+                "audio_url": str(tmp_path / "episode1.mp3"),
+                "transcript_source_url": str(tmp_path / "episode1.srt"),
+                "transcript_source_type": "srt",
+                "transcript_source_language": None,
+                "transcript_source_format": "srt",
+            }
+        ],
+    )
+
+    sync_episodes(session, podcast)
+
+    episode = session.exec(select(Episode).where(Episode.podcast_id == podcast.id)).one()
+    assert episode.guid == "episode1.mp3"
+    assert episode.audio_url == str(tmp_path / "episode1.mp3")
+    assert episode.transcript_source_url == str(tmp_path / "episode1.srt")
+    assert episode.transcript_status == TranscriptStatus.pending
